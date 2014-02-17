@@ -181,16 +181,43 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
       return function ($scope) {
         var inherited = parentEl.inheritedData('$uiView');
 
+        var elId = '#' + attrs['id']+' ';
+        var parallelState;
+        if (attrs['parallelState']) {
+          // a parallel-state was tagged on the ui-view.  Set up a marker on the $uiView DOM element to
+          // reference later, and in nested views.
+          parallelState = inherited.state.self.name + attrs['parallelState'];
+          if (!$state.get(parallelState)) throw new Error("Couldn't find parallel state: " + parallelState);
+          // store the state name on the ui-view element
+          inherited.parallel = parallelState;
+          console.log(elId + "Compiling ui-view for Parallel State: " + parallelState);
+        } else if (inherited && inherited.parallel) {
+          console.log(elId + "Compiling Child of parent state: " + inherited.parallel)
+        }
+        // Get the parallel state name, or the inherited parallel state name
+        var parallel = inherited ? inherited.parallel : null;
         var currentScope, currentEl, viewLocals,
             name      = attrs[directive.name] || attrs.name || '',
             onloadExp = attrs.onload || '',
             autoscrollExp = attrs.autoscroll,
             renderer  = getRenderer(element, attrs, $scope);
-
         if (name.indexOf('@') < 0) name = name + '@' + (inherited ? inherited.state.name : '');
-        var view = { name: name, state: null };
+        // Store the parallel context from the DOM element to the view object
+        var view = { name: name, state: null, parallel: parallel };
 
-        var eventHook = function () {
+        var eventHook = function (evt, toState, arg2, arg3, arg4) {
+          if (parallel && evt.name == '$stateChangeSuccess') {
+            // If we're handling the "state change" event, and we have a parallel context, we may
+            // want to exit early, and not recompute which subviews to load. Instead, keep this
+            // view DOM around.
+            var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
+            if (toState.name.indexOf(parentStateToParallel + ".") == 0 && // State changed to somewhere inside root.tabs
+                (toState.name.indexOf(parallel + ".") == -1) && toState.name != parallel) { // State changed to somewhere OUTSIDE our tab.
+              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
+              return;
+            }
+         }
+
           if (viewIsUpdating) return;
           viewIsUpdating = true;
 
@@ -204,7 +231,19 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
         $scope.$on('$stateChangeSuccess', eventHook);
         $scope.$on('$viewContentLoading', eventHook);
 
-        updateView(false);
+        if (parallel && !$state.includes(parallel)) {
+          // Initial compile step calls updateView.  I'm not sure how to better handle this.  I don't want
+          // updateView to try to load the actual view now because it will load one copy of the '' view
+          // for each parallel state defined.  I want updateView to run, however, because I want the
+          // "default"/"no state loaded" markup rendered. As a hack, I am setting the name to something
+          // ridiculous so it isn't found in locals when updateView is called.
+          var oldName = name;
+          name = '##AASSDDFF.......';  // something that won't match in updateView. Need better way to do this.
+          updateView(false);
+          name = oldName;
+        } else {
+          updateView(false);
+        }
 
         function cleanupLastView() {
           if (currentEl) {
@@ -216,10 +255,27 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             currentScope.$destroy();
             currentScope = null;
           }
+          // Nuke the viewLocals in cleanupLastView so they don't get reused in updateView
+          viewLocals = null;
         }
 
         function updateView(shouldAnimate) {
-          var locals = $state.$current && $state.$current.locals[name];
+          var locals;
+          // If the view is parallel, we may re-activate an inactive view
+          if (view.parallel) {
+            // When reactivating a parallel state, the locals got re-resolved.  To stop the view
+            // from resetting locals and scope, etc, re-use the viewLocals.
+            // This logic should probably be moved to resolveState somehow.
+            if (viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
+              locals = viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
+              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
+            } else {
+              locals = $state.$current && $state.$current.locals[name];
+              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
+            }
+          } else {
+            locals = $state.$current && $state.$current.locals[name];
+          }
 
           if (isDefault) {
             isDefault = false;
