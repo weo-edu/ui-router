@@ -186,10 +186,10 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
                 autoscrollExp = attrs.autoscroll,
                 renderer  = getRenderer(element, attrs, $scope);
 
-        var elId = '#' + attrs['id']+' ';
+//        var elId = '#' + attrs.id + ' ';
         var parallel;
         // Check if this ui-view's name references a direct child parallel state
-        if (name.indexOf(".") == 0) {
+        if (name.indexOf(".") === 0) {
           if (!inherited || !inherited.state)
             throw new Error("ui-view='" + name + "' indicating substate, but unable to locate parent $uiView or $uiView.state ");
           if (name.indexOf(".", 1) != -1)
@@ -223,7 +223,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
             // State changed to somewhere below the _parent_ to the parallel state we live in.
             // This means it was either to our parallel state, or
-            var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") == 0;
+            var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
             var stateIncludesOurSubtreeroot = toState.name.indexOf(parallel + ".") == -1;
             var stateIsOurSubtreeRoot = toState.name == parallel;
             if (stateIncludesParentToSubtree && stateIncludesOurSubtreeroot && !stateIsOurSubtreeRoot) {
@@ -286,10 +286,10 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             // This logic should probably be moved to resolveState somehow.
             if (viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
               locals = viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
-              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
+//              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
             } else {
               locals = $state.$current && $state.$current.locals[name];
-              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
+//              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
             }
           } else {
             locals = $state.$current && $state.$current.locals[name];

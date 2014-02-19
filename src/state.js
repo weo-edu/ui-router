@@ -831,30 +831,30 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
         if ($state.transition !== transition) return TransitionSuperseded;
 
-	// Check if we are transitioning to a state in a different parallel state tree
-	// fromPath[keep] will be the root of the parallel tree being exited
-	var parallel = keep < fromPath.length && fromPath[keep].self.parallel;
-	// Exit 'from' states not kept
-	for (l=fromPath.length-1; l>=keep; l--) {
-	    exiting = fromPath[l];
-	    if (!parallel) {
-		if (exiting.self.onExit) {
-		    $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
-		}
-		exiting.locals = null;
-	    } else {
-		// Keep locals around. Notify states they are being Inactivated (i.e., a different
-		// parallel state tree is now active).
-		if (exiting.self.onInactivate) {
-		    $injector.invoke(exiting.self.onInactivate, exiting.self, exiting.locals.globals);
-		}
-	    }
-	}
+        // Check if we are transitioning to a state in a different parallel state tree
+        // fromPath[keep] will be the root of the parallel tree being exited
+        var parallel = keep < fromPath.length && fromPath[keep].self.parallel;
+        // Exit 'from' states not kept
+        for (l = fromPath.length - 1; l >= keep; l--) {
+          exiting = fromPath[l];
+          if (!parallel) {
+            if (exiting.self.onExit) {
+              $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+            }
+            exiting.locals = null;
+          } else {
+            // Keep locals around. Notify states they are being Inactivated (i.e., a different
+            // parallel state tree is now active).
+            if (exiting.self.onInactivate) {
+              $injector.invoke(exiting.self.onInactivate, exiting.self, exiting.locals.globals);
+            }
+          }
+        }
 
         // Enter 'to' states not kept
         for (l=keep; l<toPath.length; l++) {
           entering = toPath[l];
-	  entering.locals = toLocals[l];
+          entering.locals = toLocals[l];
           if (entering.self.onEnter) {
             $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
           }
