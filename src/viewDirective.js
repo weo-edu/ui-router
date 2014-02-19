@@ -180,11 +180,12 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
       return function ($scope) {
         var inherited = parentEl.inheritedData('$uiView');
+
         var currentScope, currentEl, viewLocals,
-                name      = attrs[directive.name] || attrs.name || '',
-                onloadExp = attrs.onload || '',
-                autoscrollExp = attrs.autoscroll,
-                renderer  = getRenderer(element, attrs, $scope);
+            name      = attrs[directive.name] || attrs.name || '',
+            onloadExp = attrs.onload || '',
+            autoscrollExp = attrs.autoscroll,
+            renderer  = getRenderer(element, attrs, $scope);
 
 //        var elId = '#' + attrs.id + ' ';
         var parallel;
@@ -224,9 +225,9 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             // State changed to somewhere below the _parent_ to the parallel state we live in.
             // This means it was either to our parallel state, or
             var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
-            var stateIncludesOurSubtreeroot = toState.name.indexOf(parallel + ".") == -1;
+            var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
             var stateIsOurSubtreeRoot = toState.name == parallel;
-            if (stateIncludesParentToSubtree && stateIncludesOurSubtreeroot && !stateIsOurSubtreeRoot) {
+            if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
               // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
 //              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
               return;
