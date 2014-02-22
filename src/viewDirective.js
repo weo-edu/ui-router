@@ -254,7 +254,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
           viewLocals = locals;
           view.state = locals.$$state;
-          view.parallel = parallelSupport.getParallelStateNames(view);
+          view.parallel = parallelSupport.getParallelStateStack(view);
 
           var link = $compile(currentEl.contents());
 
@@ -308,25 +308,37 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
     isChangeInParallelUniverse: function (view, evt, toState) {
       // If we're handling the "state change" event, and we have a parallel context, we may
       // want to exit early, and not recompute which subviews to load. Instead, we want to
-      // leave this DOM tree untouched.
-      var parallel = view.parallel;
-      if (parallel && evt.name == '$stateChangeSuccess') {
-        var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
-        // State changed to somewhere below the _parent_ to the parallel state we live in.
-        // This means it was either to our parallel state, or
-        var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
-        var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
-        var stateIsOurSubtreeRoot = toState.name == parallel;
-        if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
-          // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
+      // leave the DOM tree untouched for this view.
+      var parallelArray = view.parallel;
+      if (parallelArray && evt.name == '$stateChangeSuccess') {
+        // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
+        // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
+        for (var i = 0; i < parallelArray.length; i++) {
+          var parallel = parallelArray[i];
+          var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
+          // State changed to somewhere below the _parent_ to the parallel state we live in.
+          var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
+
+          var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
+          var stateIsOurSubtreeRoot = toState.name == parallel;
+          if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
+            // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
 //              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
-          return true;
+            return true;
+          }
         }
       }
       return false;
     },
-    getParallelStateNames: function (view) {
-      return view.state.self.parallel ? view.state.self.name : view.parallel;
+    getParallelStateStack: function (view) {
+      // This view's state doesn't declare itself as parallel.  Return whatever was in view already (from inherited)
+      if (!view.state.self.parallel)
+        return view.parallel;
+
+      // This view's state is declared parallel.  Push this state to a copy of the inherited parallel state array (or create new one)
+      var parallelArray = (view.parallel ? angular.copy(view.parallel) : []);
+      parallelArray.push(view.state.self.name);
+      return parallelArray;
     }
   };
 
