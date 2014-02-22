@@ -180,46 +180,23 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
       return function ($scope) {
         var inherited = parentEl.inheritedData('$uiView');
-
         var currentScope, currentEl, viewLocals,
             name      = attrs[directive.name] || attrs.name || '',
             onloadExp = attrs.onload || '',
             autoscrollExp = attrs.autoscroll,
             renderer  = getRenderer(element, attrs, $scope);
 
-//        var elId = '#' + attrs.id + ' ';
-        var parallel;
-        // Check if this ui-view's name references a direct child parallel state
-        if (name.indexOf(".") === 0) {
-          if (!inherited || !inherited.state)
-            throw new Error("ui-view='" + name + "' indicating substate, but unable to locate parent $uiView or $uiView.state ");
-          if (name.indexOf(".", 1) != -1)
-            throw new Error("ui-view='" + name + "' illegal substate reference.  Can only reference direct child substates. ");
-          // a parallel-state was tagged on the ui-view.  Set up a marker on the $uiView DOM element to
-          // reference later, and in nested views.
-
-          // first, build the fully qualified state name (parent-el-state + this ui-view substate reference)
-          var parallelState = inherited.state.self.name + name;
-          if (!$state.get(parallelState))
-            throw new Error("Couldn't find parallel state: " + parallelState);
-          // store the state name on the view object (which goes on the ui-view element)
-          parallel = parallelState;
-          // Reset the view name to empty string, so we don't try to pull a named view in updateView()
-          name = '';
-        }
-
-        // Get the parallel state name, or the inherited parallel state name
-        // If parallel, we need to know which parallel state tree we live in later
-        parallel = parallel ? parallel : (inherited ? inherited.parallel : null);
-
         if (name.indexOf('@') < 0) name = name + '@' + (inherited ? inherited.state.name : '');
         // Store the parallel context from the DOM element to the view object
-        var view = { name: name, state: null, parallel: parallel };
+        // If parallel, we need to know which parallel state tree we live in later
+          var view = { name: name, state: null, parallel: (inherited ? inherited.parallel : null) };
+//        var elId = '#' + attrs.id + ' ';
 
         var eventHook = function (evt, toState, toParams) {
           // If we're handling the "state change" event, and we have a parallel context, we may
           // want to exit early, and not recompute which subviews to load. Instead, we want to
           // leave this DOM tree untouched.
+            var parallel = view.parallel;
           if (parallel && evt.name == '$stateChangeSuccess') {
             var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
             // State changed to somewhere below the _parent_ to the parallel state we live in.
@@ -247,22 +224,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
         $scope.$on('$stateChangeSuccess', eventHook);
         $scope.$on('$viewContentLoading', eventHook);
 
-        if (parallel && !$state.includes(parallel)) {
-          // This block handles the initial updateView call during compile stage.  All other updateView happen
-          // via the eventHook callback.
-
-          // I'm not sure how to better handle this.  I don't want updateView to try to load the actual view now because
-          // it will load one copy of the '' view for each parallel state defined.  I want updateView to actually run,
-          // however, because I want the "default"/"no state loaded" markup rendered. As a hack, I am setting the name
-          // to something ridiculous so it isn't found in locals when updateView(false) is called.
-          var oldName = name;
-          // something that won't match in updateView. Need better way to do this.  Perhaps add an argument to updateView()
-          name = '##AASSDDFF.......';
           updateView(false);
-          name = oldName;
-        } else {
-          updateView(false);
-        }
 
         function cleanupLastView() {
           if (currentEl) {
@@ -324,6 +286,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
           viewLocals = locals;
           view.state = locals.$$state;
+          view.parallel = view.state.self.parallel ? view.state.self.name : view.parallel;
 
           var link = $compile(currentEl.contents());
 
