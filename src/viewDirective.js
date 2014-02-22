@@ -180,6 +180,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
       return function ($scope) {
         var inherited = parentEl.inheritedData('$uiView');
+
         var currentScope, currentEl, viewLocals,
             name      = attrs[directive.name] || attrs.name || '',
             onloadExp = attrs.onload || '',
@@ -187,31 +188,12 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             renderer  = getRenderer(element, attrs, $scope);
 
         if (name.indexOf('@') < 0) name = name + '@' + (inherited ? inherited.state.name : '');
-        // Store the parallel context from the DOM element to the view object
-        // If parallel, we need to know which parallel state tree we live in later
-          var view = { name: name, state: null, parallel: (inherited ? inherited.parallel : null) };
-//        var elId = '#' + attrs.id + ' ';
+        var view = { name: name, state: null, parallel: (inherited ? inherited.parallel : null) };
 
         var eventHook = function (evt, toState, toParams) {
-          // If we're handling the "state change" event, and we have a parallel context, we may
-          // want to exit early, and not recompute which subviews to load. Instead, we want to
-          // leave this DOM tree untouched.
-            var parallel = view.parallel;
-          if (parallel && evt.name == '$stateChangeSuccess') {
-            var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
-            // State changed to somewhere below the _parent_ to the parallel state we live in.
-            // This means it was either to our parallel state, or
-            var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
-            var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
-            var stateIsOurSubtreeRoot = toState.name == parallel;
-            if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
-              // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
-//              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
-              return;
-            }
+          if (viewIsUpdating || parallelSupport.isChangeInParallelUniverse(view, evt, toState)) {
+            return;
           }
-
-          if (viewIsUpdating) return;
           viewIsUpdating = true;
 
           try { updateView(true); } catch (e) {
@@ -224,7 +206,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
         $scope.$on('$stateChangeSuccess', eventHook);
         $scope.$on('$viewContentLoading', eventHook);
 
-          updateView(false);
+        updateView(false);
 
         function cleanupLastView() {
           if (currentEl) {
@@ -241,22 +223,8 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
         }
 
         function updateView(shouldAnimate) {
-          var locals;
           // If the view is parallel, we may re-activate an inactive view
-          if (view.parallel) {
-            // When reactivating a parallel state, the locals got re-resolved.  To stop the view
-            // from resetting locals and scope, etc, re-use the viewLocals.
-            // This logic should probably be moved to resolveState somehow.
-            if (viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
-              locals = viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
-//              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
-            } else {
-              locals = $state.$current && $state.$current.locals[name];
-//              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
-            }
-          } else {
-            locals = $state.$current && $state.$current.locals[name];
-          }
+          var locals = parallelSupport.restoreLocals(viewLocals, view, name);
 
           if (isDefault) {
             isDefault = false;
@@ -286,7 +254,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
           viewLocals = locals;
           view.state = locals.$$state;
-          view.parallel = view.state.self.parallel ? view.state.self.name : view.parallel;
+          view.parallel = parallelSupport.getParallelStateNames(view);
 
           var link = $compile(currentEl.contents());
 
@@ -321,6 +289,44 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
           }
         }
       };
+    }
+  };
+
+  var parallelSupport = {
+    restoreLocals: function (viewLocals, view, name) {
+      // When reactivating a parallel state, the locals got re-resolved.  To stop the view
+      // from resetting locals and scope, etc, re-use the viewLocals.
+      // This logic should probably be moved to resolveState somehow.
+      if (view.parallel && viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
+        return viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
+//              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
+      } else {
+        return $state.$current && $state.$current.locals[name];
+//              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
+      }
+    },
+    isChangeInParallelUniverse: function (view, evt, toState) {
+      // If we're handling the "state change" event, and we have a parallel context, we may
+      // want to exit early, and not recompute which subviews to load. Instead, we want to
+      // leave this DOM tree untouched.
+      var parallel = view.parallel;
+      if (parallel && evt.name == '$stateChangeSuccess') {
+        var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
+        // State changed to somewhere below the _parent_ to the parallel state we live in.
+        // This means it was either to our parallel state, or
+        var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
+        var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
+        var stateIsOurSubtreeRoot = toState.name == parallel;
+        if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
+          // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
+//              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
+          return true;
+        }
+      }
+      return false;
+    },
+    getParallelStateNames: function (view) {
+      return view.state.self.parallel ? view.state.self.name : view.parallel;
     }
   };
 
