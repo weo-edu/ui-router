@@ -188,7 +188,7 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
             renderer  = getRenderer(element, attrs, $scope);
 
         if (name.indexOf('@') < 0) name = name + '@' + (inherited ? inherited.state.name : '');
-        var view = { name: name, state: null, parallel: (inherited ? inherited.parallel : null) };
+        var view = { name: name, state: null };
 
         var eventHook = function (evt, toState, toParams) {
           if (viewIsUpdating || $parallelState.isChangeInParallelUniverse(view, evt, toState)) {
@@ -251,7 +251,6 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
 
           viewLocals = locals;
           view.state = locals.$$state;
-          view.parallel = $parallelState.getParallelStateStack(view);
 
           var link = $compile(currentEl.contents());
 
@@ -293,78 +292,3 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
 }
 
 angular.module('ui.router.state').directive('uiView', $ViewDirective);
-
-
-angular.module('ui.router.state').service('$parallelState', [ '$injector', function($injector) {
-  var inactiveStates = {};
-
-  var parallelSupport = {
-//    restoreLocals: function ($state, viewLocals, view, name) {
-//      // When reactivating a parallel state, the locals got re-resolved.  To stop the view
-//      // from resetting locals and scope, etc, re-use the viewLocals.
-//      // This logic should probably be moved to resolveState somehow.
-//      if (view.parallel && viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
-//        return viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
-////              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
-//      } else {
-//        return $state.$current && $state.$current.locals[name];
-////              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
-//      }
-//    },
-    isChangeInParallelUniverse: function (view, evt, toState) {
-      // If we're handling the "state change" event, and we have a parallel context, we may
-      // want to exit early, and not recompute which subviews to load. Instead, we want to
-      // leave the DOM tree untouched for this view.
-      var parallelArray = view.parallel;
-      if (parallelArray && evt.name == '$stateChangeSuccess') {
-        // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
-        // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
-        for (var i = 0; i < parallelArray.length; i++) {
-          var parallel = parallelArray[i];
-          var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
-          // State changed to somewhere below the _parent_ to the parallel state we live in.
-          var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
-
-          var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
-          var stateIsOurSubtreeRoot = toState.name == parallel;
-          if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
-            // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
-//              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
-            return true;
-          }
-        }
-      }
-      return false;
-    },
-    getParallelStateStack: function (view) {
-      // This view's state doesn't declare itself as parallel.  Return whatever was in view already (from inherited)
-      if (!view.state.self.parallel)
-        return view.parallel;
-
-      // This view's state is declared parallel.  Push this state to a copy of the inherited parallel state array (or create new one)
-      var parallelArray = (view.parallel ? angular.copy(view.parallel) : []);
-      parallelArray.push(view.state.self.name);
-      return parallelArray;
-    },
-    inactivateState: function(state) {
-      // Keep locals around.
-      inactiveStates[state.self.name] = { locals: state.locals, stateParams: state.params, ownParams: state.ownParams };
-      // Notify states they are being Inactivated (i.e., a different
-      // parallel state tree is now active).
-      if (state.self.onInactivate) {
-        $injector.invoke(state.self.onInactivate, state.self, state.locals.globals);
-      }
-    },
-    getInactivatedState: function(state, stateParams) {
-      var inactiveState = inactiveStates[state.name];
-      if (!inactiveState) return null;
-      // I'm not understanding state.ownParams.  I don't know if ownParams is merged with the inherited params
-      // before storing on the fully realized state object (the one I have stored in inactiveState).
-      return (equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams)) ? inactiveState : null;
-
-    }
-  }
-          ;
-
-  return parallelSupport;
-}]);

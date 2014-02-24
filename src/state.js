@@ -20,8 +20,8 @@
  *
  * The `$stateProvider` provides interfaces to declare these states for your app.
  */
-$StateProvider.$inject = ['$urlRouterProvider', '$urlMatcherFactoryProvider', '$locationProvider'];
-function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $locationProvider) {
+$StateProvider.$inject = ['$urlRouterProvider', '$urlMatcherFactoryProvider', '$locationProvider', '$parallelStateProvider'];
+function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $locationProvider,   $parallelStateProvider) {
 
   var root, states = {}, $state, queue = {}, abstractKey = 'abstract';
 
@@ -198,6 +198,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       if (isFunction(stateBuilder[key])) state[key] = stateBuilder[key](state, stateBuilder.$delegates[key]);
     }
     states[name] = state;
+    if (state.parallel) $parallelStateProvider.registerParallelState(state);
 
     // Register the state in the global state list and with $urlRouter if necessary.
     if (!state[abstractKey] && state.url) {
@@ -1151,3 +1152,77 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 angular.module('ui.router.state')
   .value('$stateParams', {})
   .provider('$state', $StateProvider);
+
+
+
+$ParallelStateProvider.$inject = [ '$injector' ];
+function $ParallelStateProvider($injector) {
+  var inactiveLocals = {}; // state.name -> { locals: .., stateParams: .., ownParams: .. }
+  var parallelStates = {}; // state.name -> active/inactive
+
+  this.registerParallelState = function(state) {
+    parallelStates[state.name] = false;
+  };
+
+  this.$get = function () {
+    return parallelSupport;
+  };
+
+  var parallelSupport = {
+    isChangeInParallelUniverse: function (view, evt, toState) {
+      // If we're handling the "state change" event, and we have a parallel context, we may
+      // want to exit early, and not recompute which subviews to load. Instead, we want to
+      // leave the DOM tree untouched for this view.
+      var parallelArray = parallelSupport.getParallelStateStack(view);
+      if (parallelArray.length && evt.name == '$stateChangeSuccess') {
+        // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
+        // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
+        for (var i = 0; i < parallelArray.length; i++) {
+          var parallel = parallelArray[i];
+          var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
+          // State changed to somewhere below the _parent_ to the parallel state we live in.
+          var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
+
+          var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
+          var stateIsOurSubtreeRoot = toState.name == parallel;
+          if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
+            // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
+//              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
+            return true;
+          }
+        }
+      }
+      return false;
+    },
+    getParallelStateStack: function (view) {
+      var stack = [];
+      if (!view || !view.state) return stack;
+      var stateNameComponents = view.state.self.name.split(".");
+      var name;
+      for (var i = 0; i < stateNameComponents.length; i++) {
+        var partial = stateNameComponents[i];
+        name = (name ? name + "." + partial : partial);
+        if (parallelStates[name] !== undefined) {
+          stack.push(name);
+        }
+      }
+      return stack;
+    },
+    inactivateState: function (state) {
+      // Keep locals around.
+      inactiveLocals[state.self.name] = { locals: state.locals, stateParams: state.params, ownParams: state.ownParams };
+      // Notify states they are being Inactivated (i.e., a different
+      // parallel state tree is now active).
+      if (state.self.onInactivate) {
+        $injector.invoke(state.self.onInactivate, state.self, state.locals.globals);
+      }
+    },
+    getInactivatedState: function (state, stateParams) {
+      var inactiveState = inactiveLocals[state.name];
+      if (!inactiveState) return null;
+      return (equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams)) ? inactiveState : null;
+
+    }
+  };
+}
+angular.module('ui.router.util').provider('$parallelState', $ParallelStateProvider);
