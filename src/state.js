@@ -501,8 +501,8 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
    */
   // $urlRouter is injected just to ensure it gets instantiated
   this.$get = $get;
-  $get.$inject = ['$rootScope', '$q', '$view', '$injector', '$resolve', '$stateParams', '$location', '$urlRouter', '$browser'];
-  function $get(   $rootScope,   $q,   $view,   $injector,   $resolve,   $stateParams,   $location,   $urlRouter,   $browser) {
+  $get.$inject = ['$rootScope', '$q', '$view', '$injector', '$resolve', '$stateParams', '$parallelState',  '$location', '$urlRouter', '$browser'];
+  function $get(   $rootScope,   $q,   $view,   $injector,   $resolve,   $stateParams,   $parallelState,    $location,   $urlRouter,   $browser) {
 
     var TransitionSuperseded = $q.reject(new Error('transition superseded'));
     var TransitionPrevented = $q.reject(new Error('transition prevented'));
@@ -818,8 +818,13 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
       for (var l=keep; l<toPath.length; l++, state=toPath[l]) {
-        locals = toLocals[l] = inherit(locals);
-        resolved = resolveState(state, toParams, state===to, resolved, locals);
+        var restoredState = $parallelState.getInactivatedState(state, toParams);
+        if (restoredState) {
+          locals = toLocals[l] = restoredState.locals;
+        } else {
+          locals = toLocals[l] = inherit(locals);
+          resolved = resolveState(state, toParams, state===to, resolved, locals);
+        }
       }
 
       // Once everything is resolved, we are ready to perform the actual transition
@@ -831,14 +836,22 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
         if ($state.transition !== transition) return TransitionSuperseded;
 
+        // Check if we are transitioning to a state in a different parallel state tree
+        // fromPath[keep] will be the root of the parallel tree being exited
+        var parallel = keep < fromPath.length && fromPath[keep].self.parallel;
         // Exit 'from' states not kept
-        for (l=fromPath.length-1; l>=keep; l--) {
+        for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          if (exiting.self.onExit) {
-            $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+          if (!parallel) {
+            if (exiting.self.onExit) {
+              $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+            }
+            exiting.locals = null;
+          } else {
+            $parallelState.inactivateState(exiting);
           }
-          exiting.locals = null;
         }
+
 
         // Enter 'to' states not kept
         for (l=keep; l<toPath.length; l++) {

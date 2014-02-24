@@ -115,8 +115,8 @@
  * <ui-view autoscroll='scopeVariable'/>
  * </pre>
  */
-$ViewDirective.$inject = ['$state', '$compile', '$controller', '$injector', '$uiViewScroll', '$document'];
-function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $uiViewScroll,   $document) {
+$ViewDirective.$inject = ['$state', '$parallelState', '$compile', '$controller', '$injector', '$uiViewScroll', '$document'];
+function $ViewDirective(   $state,   $parallelState,   $compile,   $controller,   $injector,   $uiViewScroll,   $document) {
 
   function getService() {
     return ($injector.has) ? function(service) {
@@ -191,7 +191,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
         var view = { name: name, state: null, parallel: (inherited ? inherited.parallel : null) };
 
         var eventHook = function (evt, toState, toParams) {
-          if (viewIsUpdating || parallelSupport.isChangeInParallelUniverse(view, evt, toState)) {
+          if (viewIsUpdating || $parallelState.isChangeInParallelUniverse(view, evt, toState)) {
             return;
           }
           viewIsUpdating = true;
@@ -218,13 +218,10 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
             currentScope.$destroy();
             currentScope = null;
           }
-          // Nuke the viewLocals in cleanupLastView so they don't get reused in updateView
-          viewLocals = null;
         }
 
         function updateView(shouldAnimate) {
-          // If the view is parallel, we may re-activate an inactive view
-          var locals = parallelSupport.restoreLocals(viewLocals, view, name);
+          var locals = $state.$current && $state.$current.locals[name];
 
           if (isDefault) {
             isDefault = false;
@@ -254,7 +251,7 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
 
           viewLocals = locals;
           view.state = locals.$$state;
-          view.parallel = parallelSupport.getParallelStateStack(view);
+          view.parallel = $parallelState.getParallelStateStack(view);
 
           var link = $compile(currentEl.contents());
 
@@ -292,19 +289,28 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
     }
   };
 
+  return directive;
+}
+
+angular.module('ui.router.state').directive('uiView', $ViewDirective);
+
+
+angular.module('ui.router.state').service('$parallelState', [ '$injector', function($injector) {
+  var inactiveStates = {};
+
   var parallelSupport = {
-    restoreLocals: function (viewLocals, view, name) {
-      // When reactivating a parallel state, the locals got re-resolved.  To stop the view
-      // from resetting locals and scope, etc, re-use the viewLocals.
-      // This logic should probably be moved to resolveState somehow.
-      if (view.parallel && viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
-        return viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
-//              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
-      } else {
-        return $state.$current && $state.$current.locals[name];
-//              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
-      }
-    },
+//    restoreLocals: function ($state, viewLocals, view, name) {
+//      // When reactivating a parallel state, the locals got re-resolved.  To stop the view
+//      // from resetting locals and scope, etc, re-use the viewLocals.
+//      // This logic should probably be moved to resolveState somehow.
+//      if (view.parallel && viewLocals && $state.includes(view.state.self.name)) { // a viewLocals is sitting around and this view's state is included
+//        return viewLocals; // Reuse viewLocals instead of pulling out of $state.$current
+////              console.log(elId+"updateView(" + name + ") parallel; setting locals to viewLocals");
+//      } else {
+//        return $state.$current && $state.$current.locals[name];
+////              console.log(elId+"updateView(" + name + ") parallel; setting locals to $state.$current.locals[name]");
+//      }
+//    },
     isChangeInParallelUniverse: function (view, evt, toState) {
       // If we're handling the "state change" event, and we have a parallel context, we may
       // want to exit early, and not recompute which subviews to load. Instead, we want to
@@ -339,10 +345,26 @@ function $ViewDirective(   $state,   $compile,   $controller,   $injector,   $ui
       var parallelArray = (view.parallel ? angular.copy(view.parallel) : []);
       parallelArray.push(view.state.self.name);
       return parallelArray;
+    },
+    inactivateState: function(state) {
+      // Keep locals around.
+      inactiveStates[state.self.name] = { locals: state.locals, stateParams: state.params, ownParams: state.ownParams };
+      // Notify states they are being Inactivated (i.e., a different
+      // parallel state tree is now active).
+      if (state.self.onInactivate) {
+        $injector.invoke(state.self.onInactivate, state.self, state.locals.globals);
+      }
+    },
+    getInactivatedState: function(state, stateParams) {
+      var inactiveState = inactiveStates[state.name];
+      if (!inactiveState) return null;
+      // I'm not understanding state.ownParams.  I don't know if ownParams is merged with the inherited params
+      // before storing on the fully realized state object (the one I have stored in inactiveState).
+      return (equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams)) ? inactiveState : null;
+
     }
-  };
+  }
+          ;
 
-  return directive;
-}
-
-angular.module('ui.router.state').directive('uiView', $ViewDirective);
+  return parallelSupport;
+}]);
