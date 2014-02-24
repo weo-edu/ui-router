@@ -818,13 +818,14 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // empty and gets filled asynchronously. We need to keep track of the promise for the
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
+      var restoredStates = {}; // Used after all states are resolved to notify $parallelState
       for (var l=keep; l<toPath.length; l++, state=toPath[l]) {
         var restoredState = $parallelState.getInactivatedState(state, toParams);
+        locals = toLocals[l] = (restoredState ? restoredState.locals : inherit(locals));
         if (restoredState) {
-          locals = toLocals[l] = restoredState.locals;
+          restoredStates[state.name] = true;
         } else {
-          locals = toLocals[l] = inherit(locals);
-          resolved = resolveState(state, toParams, state===to, resolved, locals);
+          resolved = resolveState(state, toParams, state === to, resolved, locals);
         }
       }
 
@@ -843,22 +844,21 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          if (!parallel) {
-            if (exiting.self.onExit) {
-              $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
-            }
-            exiting.locals = null;
-          } else {
-            $parallelState.inactivateState(exiting);
+          if (parallel)
+            $parallelState.stateInactivated(exiting);
+          else if (exiting.self.onExit) {
+            $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
           }
+          exiting.locals = null;
         }
-
 
         // Enter 'to' states not kept
         for (l=keep; l<toPath.length; l++) {
           entering = toPath[l];
           entering.locals = toLocals[l];
-          if (entering.self.onEnter) {
+          if (restoredStates[entering.self.name]) {
+            $parallelState.stateReactivated(entering);
+          } else if (entering.self.onEnter) {
             $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
           }
         }
@@ -1208,7 +1208,7 @@ function $ParallelStateProvider($injector) {
       }
       return stack;
     },
-    inactivateState: function (state) {
+    stateInactivated: function (state) {
       // Keep locals around.
       inactiveLocals[state.self.name] = { locals: state.locals, stateParams: state.params, ownParams: state.ownParams };
       // Notify states they are being Inactivated (i.e., a different
@@ -1217,11 +1217,18 @@ function $ParallelStateProvider($injector) {
         $injector.invoke(state.self.onInactivate, state.self, state.locals.globals);
       }
     },
+    stateReactivated: function(state) {
+      if (inactiveLocals[state.self.name]) {
+        delete inactiveLocals[state.self.name];
+      }
+      if (state.self.onReactivate) {
+        $injector.invoke(state.self.onReactivate, state.self, state.locals.globals);
+      }
+    },
     getInactivatedState: function (state, stateParams) {
       var inactiveState = inactiveLocals[state.name];
       if (!inactiveState) return null;
       return (equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams)) ? inactiveState : null;
-
     }
   };
 }
