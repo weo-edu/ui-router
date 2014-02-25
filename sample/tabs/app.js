@@ -9,7 +9,7 @@ angular.module('parallel', ['ui.router']);
 //                      root.tabs.people
 //                       /PARALLEL
 //                      /
-//    root.other       /                            root.tabs.S2.i
+//    root.notabs       /                            root.tabs.S2.i
 //     /              /                PARALLEL    /
 //  root --- root.tabs --------------- root.tabs.S2 -- root.tabs.S2.ii
 //               |   \                              \
@@ -32,7 +32,7 @@ angular.module('parallel', ['ui.router']);
 
 // NESTED PARALLEL STATE SAMPLES
 // -----------------------------
-// root.other: non-parallel "reset" sibling state
+// root.notabs: non-parallel "reset" sibling state
 //             This state is above the parallel states; activation will exit all active/inactive parallel states
 
 // root.tabs: parent state to the top level of parallel states.  Has a template with tabs/tab control directives.
@@ -56,7 +56,7 @@ angular.module('parallel', ['ui.router']);
 angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', function ($stateProvider, $urlRouterProvider) {
   $urlRouterProvider.otherwise("/");
 
-  // Root state.  Has a standard ui-view which gets loaded with either 'root.other' (no tabs) or 'root.tabs' (the tabs list state)
+  // Root state.  Has a standard ui-view which gets loaded with either 'root.notabs' (no tabs) or 'root.tabs' (the tabs list state)
   $stateProvider.state('root', {
     controller: function ($scope, $state, $timeout) {
       $scope.data = 'Some State Data';
@@ -69,12 +69,14 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
     template: '<h3>Active State: {{activestate}}</h3>' +
             '<div>' +
             '<b>root</b>: Started {{delta}} seconds ago' +
-            '<input ng-model="data" type="text">{{data}}' +
+            '<br><input ng-model="data" type="text">{{data}}' +
+            '<br>Neither root.tabs nor root.notabs are parallel.   ' +
+            '<br>Selecting one of these states will exit all parallel states..' +
             '<br>Go to: ' +
-            '  <a ui-sref-active="active" ui-sref=".tabs">tabs</a> / <a ui-sref-active="active" ui-sref=".other">non tabs</a>' +
+            '  <a ui-sref-active="active" ui-sref=".tabs">tabs</a> / <a ui-sref-active="active" ui-sref=".notabs">non tabs</a>' +
             '  <div id="root_ui-view" ui-view>Nothing Loaded</div>' +
             '</div>',
-    url: '/',
+    url: '/'
   });
 
   // The top tab list state.  Has four named ui-views.  Uses tab_controls.js to manage state transitions when the tabs are clicked.
@@ -86,7 +88,7 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
       }
     },
     template: '<b>root.tabs</b>: Started {{delta}} seconds ago' +
-            '<input ng-model="data" type="text">{{data}}' +
+            '<br><input ng-model="data" type="text">{{data}}' +
             '<br><input type="checkbox" ng-model="showInactiveTabs">Show inactive tabs' +
 
             // Here is where we set up the 4 tab controls (the UI for selecting tabs), and use parallel-state-controls
@@ -111,11 +113,11 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
 
   // A dummy state to demonstrate the tabs state coming and going.  Activating this state will exit root.tabs, and thus
   // exit all currently active or inactivated parallel substates of root.tabs.
-  $stateProvider.state('root.other', {
+  $stateProvider.state('root.notabs', {
     controller: timerCtrl,
-    template: '<h4>No tabs here</h4>' +
-            '<b>root.other</b>: Started {{delta}} seconds ago' +
-            '<input ng-model="data" type="text">{{data}}',
+    template: '<h4>No tabs here.  Toggling from tabs to notabs exits all substates of tabs.</h4>' +
+            '<b>root.notabs</b>: Started {{delta}} seconds ago' +
+            '<br><input ng-model="data" type="text">{{data}}',
     url: 'notabs'
   });
 
@@ -132,7 +134,7 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
           timerCtrl($scope, $state, $timeout);
         },
         template: '<b>root.tabs.people</b>: Started {{delta}} seconds ago' +
-                '<input ng-model="data" type="text">{{data}}' +
+                '<br><input ng-model="data" type="text">{{data}}' +
                 '<br><ul><li ng-repeat="person in people"><a ui-sref=".person({ id: person.id})">{{person.name}}</a></li></ul>' +
                 '<div ui-view>Nothing Loaded...</div>'
       }
@@ -161,7 +163,7 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
       timerCtrl($scope, $state, $timeout);
     },
     template: '<b>root.tabs.people.person</b>: Started {{delta}} seconds ago' +
-            '<input ng-model="data" type="text">{{data}}' +
+            '<br><input ng-model="data" type="text">{{data}}' +
             '<br>{{person.name}} is a {{person.occupation}}',
     url: '/:id'
   });
@@ -173,8 +175,7 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
       S2: {
         controller: timerCtrl,
         template: '<b>root.tabs.S2</b>: Started {{delta}} seconds ago' +
-                '<input ng-model="data" type="text">' +
-                '<br>{{data}}' +
+                '<br><input ng-model="data" type="text"> {{data}}' +
                 '<br>Go to non-parallel sub-state: <a ui-sref-active="active" ui-sref=".i">S2.i</a> / ' +
                 '<a ui-sref-active="active" ui-sref=".ii">S2.ii</a> / ' +
                 '<a ui-sref-active="active" ui-sref=".iii">S2.iii (deep nested states)</a>' +
@@ -195,11 +196,11 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
 //                '<br>Not Parallel...' +
                 'Parallel subtabs...' +
                 '<b>root.tabs.subtabs</b>: Started {{delta}} seconds ago' +
-                '<input ng-model="data" type="text">{{data}}' +
+                '<br><input ng-model="data" type="text">{{data}}' +
                 '<br><input type="checkbox" ng-model="showInactiveTabs">Show inactive tabs' +
                 '<ul class="tabs" parallel-state-controls>' +
-                '   <li ng-class="{ active: isStateActive(\'root.tabs.subtabs.S1\') }" parallel-state-selector=".S1">subtabs.S1 (Nested Parallel State 1)</li>' +
-                '   <li ng-class="{ active: isStateActive(\'root.tabs.subtabs.S2\') }" parallel-state-selector=".S2">subtabs.S2 (Nested Parallel State 2)</span>' +
+                '   <li ng-class="{ active: isStateActive(\'root.tabs.subtabs.S1\') }" parallel-state-selector=".S1">subtabs.S1 (Nested Parallel)</li>' +
+                '   <li ng-class="{ active: isStateActive(\'root.tabs.subtabs.S2\') }" parallel-state-selector=".S2">subtabs.S2 (Nested Parallel)</span>' +
                 '</ul>' +
                 // Here is where the parallel states are bound to the UI.
                 // Note: Wrap the ui-view in a div because ng-show doesn't seem to work on a ui-view
@@ -218,8 +219,7 @@ angular.module('parallel').config([ '$stateProvider', '$urlRouterProvider', func
       S1: {
         controller: timerCtrl,
         template: '<b>root.tabs.subtabs.S1</b>: Started {{delta}} seconds ago' +
-                '<input ng-model="data" type="text">' +
-                '<br>{{data}}'
+                '<br><input ng-model="data" type="text"><br>{{data}}'
       }
     },
     scope: true,
