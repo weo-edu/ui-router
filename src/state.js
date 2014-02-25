@@ -844,12 +844,15 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          if (parallel)
+          if (parallel) {
             $parallelState.stateInactivated(exiting);
-          else if (exiting.self.onExit) {
-            $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+          } else {
+            $parallelState.stateExiting(exiting);
+            if (exiting.self.onExit) {
+              $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+            }
+            exiting.locals = null;
           }
-          exiting.locals = null;
         }
 
         // Enter 'to' states not kept
@@ -1157,7 +1160,7 @@ angular.module('ui.router.state')
 
 $ParallelStateProvider.$inject = [ '$injector' ];
 function $ParallelStateProvider($injector) {
-  var inactiveLocals = {}; // state.name -> { locals: .., stateParams: .., ownParams: .. }
+  var inactiveStates = {}; // state.name -> { locals: .., stateParams: .., ownParams: .. }
   var parallelStates = {}; // state.name -> active/inactive
 
   this.registerParallelState = function(state) {
@@ -1208,9 +1211,22 @@ function $ParallelStateProvider($injector) {
       }
       return stack;
     },
+    stateExiting: function (state) {
+      var substatePrefix = state.self.name + ".";
+      for (var key in inactiveStates) {
+        if (key.indexOf(substatePrefix) === 0) {
+          var exitedParallelState = inactiveStates[key];
+          if (exitedParallelState.self.onExit) {
+            $injector.invoke(exitedParallelState.self.onExit, exitedParallelState.self, exitedParallelState.locals.globals);
+          }
+          exitedParallelState.locals = null;
+          delete inactiveStates[key];
+        }
+      }
+    },
     stateInactivated: function (state) {
       // Keep locals around.
-      inactiveLocals[state.self.name] = { locals: state.locals, stateParams: state.params, ownParams: state.ownParams };
+      inactiveStates[state.self.name] = state;
       // Notify states they are being Inactivated (i.e., a different
       // parallel state tree is now active).
       if (state.self.onInactivate) {
@@ -1218,15 +1234,15 @@ function $ParallelStateProvider($injector) {
       }
     },
     stateReactivated: function(state) {
-      if (inactiveLocals[state.self.name]) {
-        delete inactiveLocals[state.self.name];
+      if (inactiveStates[state.self.name]) {
+        delete inactiveStates[state.self.name];
       }
       if (state.self.onReactivate) {
         $injector.invoke(state.self.onReactivate, state.self, state.locals.globals);
       }
     },
     getInactivatedState: function (state, stateParams) {
-      var inactiveState = inactiveLocals[state.name];
+      var inactiveState = inactiveStates[state.name];
       if (!inactiveState) return null;
       return (equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams)) ? inactiveState : null;
     }
