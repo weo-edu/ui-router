@@ -1,17 +1,14 @@
 <html>
 <head>
     <title>Testing Tabs</title>
-    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js"></script>
-    <script type="text/javascript" src="/trunk/util/js/jquery.js"></script>
-    <script type="text/javascript" src="/trunk/util/js/underscore.js"></script>
-    <script type="text/javascript" src="/trunk/util/js/angular/angular.js"></script>
-    <script type="text/javascript" src="/trunk/util/js/angular/angular-ui-router.js"></script>
-    <!--<script type="text/javascript" src="bug_analysis.js"></script>-->
+    <script type="text/javascript" src="../../lib/angular-1.2.4/angular.js"></script>
+    <script type="text/javascript" src="../../release/angular-ui-router.js"></script>
     <script type="text/javascript" src="app.js"></script>
     <script type="text/javascript" src="tab_control.js"></script>
     <link rel="stylesheet" href="tabs.css" />
 </head>
 <body ng-app="parallel">
+    <div>View app.js source code for state tree overview</div>
     <div ui-view>
         Nothing loaded.
     </div>
