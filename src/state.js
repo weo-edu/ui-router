@@ -842,7 +842,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // fromPath[keep] will be the root of the parallel tree being exited
         var parallel = keep < fromPath.length && fromPath[keep].self.parallel;
         // Exit 'from' states not kept
-        for (l = fromPath.length - 1; l >= keep; l--) {
+        for (l=fromPath.length-1; l>=keep; l--) {
           exiting = fromPath[l];
           if (parallel) {
             $parallelState.stateInactivated(exiting);
