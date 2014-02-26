@@ -526,7 +526,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       $current: root,
       transition: null
     };
-
+    $parallelStateProvider.kludgeProvideState($state);
     /**
      * @ngdoc function
      * @name ui.router.state.$state#reload

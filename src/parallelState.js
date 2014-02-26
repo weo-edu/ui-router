@@ -3,14 +3,49 @@ function $ParallelStateProvider($injector) {
   // Holds all the states which are inactivated.  Inactivated states can be either parallel states, or descendants of parallel states.
   var inactiveStates = {}; // state.name -> (state)
   var parallelStates = {}; // state.name -> true
+  var lastSubstate = {}, lastParams = {};
+  var $state;
 
   // Called by $stateProvider.registerState();
   // registers a parallel state with $parallelStateProvider
   this.registerParallelState = function(state) {
     parallelStates[state.name] = true;
+    if (state.deepStateRedirect)
+      lastSubstate[state.name] = state.name;
+  };
+
+  // Because I decoupled $parallelState from $state, and $state injects $parallelState, I can't simply inject $state here.
+  // Instead, $stateProvider calls this kludge function to provide us with $state.  I see this as temporary.  When more
+  // eyes look at this setup, we'll figure out a better way.  Perhaps just merge all the parallestate stuff into $state,
+  // since they're really at the same conceptual level.
+  this.kludgeProvideState = function($_state) {
+    $state = $_state;
   };
 
   this.$get = [ '$rootScope', function ($rootScope) {
+//  this.$get = [ '$rootScope', '$state', function ($rootScope, $state) {
+    // Intercept state transitions directly to the tab, and instead switch to the last known substate
+    $rootScope.$on("$stateChangeStart", function (evt, toState, toParams, fromState, fromParams) {
+      if (lastSubstate[toState.name] && // Changing directly to one of the "tab" states
+              lastSubstate[toState.name] != toState.name) { // Last known state within the tab isn't the tab itself
+        // Direct reference to a tab state from outside that tab (the user changed tabs)
+        // Instead of sending them to the blank tab state, send them to the last known state for tha tab
+        evt.preventDefault();
+        $state.go(lastSubstate[toState.name], lastParams[toState.name]);
+      }
+    });
+
+    // Record the last active sub-state
+    $rootScope.$on("$stateChangeSuccess", function (evt, toState, toParams, fromState, fromParams) {
+      // After state change within a tab, record the "to state" as the last known state for that tab.
+      for (var state in lastSubstate) {
+        if (toState == state || toState.name.indexOf(state + ".") != -1) {
+          lastSubstate[state] = toState.name;
+          lastParams[state] = angular.copy(toParams);
+        }
+      }
+    });
+
     return parallelSupport;
   } ];
 
