@@ -828,7 +828,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       for (var l=keep; l<toPath.length; l++, state=toPath[l]) {
         var ptransition = pEnterTransitions[l] = isParallelTransition && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
         ancestorParamsChanged = (ptransition == "updateStateParams");
-        if (ptransition) console.log(state.self.name + ": " + ptransition);
         if (ptransition == "reactivate") {
           locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
         } else {
