@@ -15,6 +15,14 @@ function $ParallelStateProvider($injector) {
   };
 
   var parallelSupport = {
+    // Used by state.js to determine if what kind of parallel state transition this is.
+    // returns { from: (bool), to: (bool) } or nulll if the transition not a parallel state change
+    getParallelTransitionType: function (keep, fromPath, toPath) {
+      if (fromPath[keep] === toPath[keep]) return null;
+      var parallelFromState = keep < fromPath.length && fromPath[keep].self.parallel;
+      var parallelToState = keep < toPath.length && toPath[keep].self.parallel;
+      return { from: parallelFromState, to: parallelToState };
+    },
 
     // Detects and returns whether the state transition is changing to a state on a peered parallel subtree
     isChangeInParallelSubtree: function (view, evt, toState) {

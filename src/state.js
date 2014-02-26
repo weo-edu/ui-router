@@ -810,9 +810,9 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         }
       }
 
-      // Check if we are transitioning from a state inside a parallel tree to a state inside a different parallel state tree
-      // fromPath[keep] will be the root of the parallel tree being exited
-      var isParallelTransition = keep < fromPath.length && fromPath[keep] !== toPath[keep] && fromPath[keep].self.parallel;
+      // Determine if we are transitioning FROM a state inside a parallel tree and/or transitioning TO a state inside
+      // a parallel state tree
+      var ptType = $parallelState.getParallelTransitionType(keep, fromPath, toPath);
 
       // Resolve locals for the remaining states, but don't update any global state just
       // yet -- if anything fails to resolve the current state needs to remain untouched.
@@ -826,9 +826,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       var ancestorParamsChanged = false;
       var pEnterTransitions = []; // Used after all states are resolved to notify $parallelState
       for (var l=keep; l<toPath.length; l++, state=toPath[l]) {
-        var ptransition = pEnterTransitions[l] = isParallelTransition && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
-        ancestorParamsChanged = (ptransition == "updateStateParams");
-        if (ptransition == "reactivate") {
+        var pEnterTransition = pEnterTransitions[l] =
+                ptType && ptType.to && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
+        ancestorParamsChanged = (pEnterTransition == "updateStateParams");
+        if (pEnterTransition == "reactivate") {
           locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
         } else {
           locals = toLocals[l] = inherit(locals);
@@ -848,7 +849,8 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l=fromPath.length-1; l>=keep; l--) {
           exiting = fromPath[l];
-          if (isParallelTransition && pEnterTransitions[l] !== "updateStateParams") {
+          // Treat parallel transition type "updateStateParams" as an exit/enter
+          if (ptType && ptType.from && pEnterTransitions[l] !== "updateStateParams") {
             $parallelState.stateInactivated(exiting);
           } else {
             $parallelState.stateExiting(exiting);
