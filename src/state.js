@@ -840,18 +840,14 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
         // Check if we are transitioning to a state in a different parallel state tree
         // fromPath[keep] will be the root of the parallel tree being exited
-        var parallel = keep < fromPath.length && fromPath[keep].self.parallel;
+        var isParallelTransition = keep < fromPath.length && fromPath[keep].self.parallel;
         // Exit 'from' states not kept
         for (l=fromPath.length-1; l>=keep; l--) {
           exiting = fromPath[l];
-          if (parallel) {
+          if (isParallelTransition) {
             $parallelState.stateInactivated(exiting);
           } else {
             $parallelState.stateExiting(exiting);
-            if (exiting.self.onExit) {
-              $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
-            }
-            exiting.locals = null;
           }
         }
 
@@ -861,8 +857,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
           entering.locals = toLocals[l];
           if (restoredStates[entering.self.name]) {
             $parallelState.stateReactivated(entering);
-          } else if (entering.self.onEnter) {
-            $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
+          } else {
+            $parallelState.stateEntering(entering, toParams);
+            if (entering.self.onEnter)
+              $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
           }
         }
 

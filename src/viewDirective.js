@@ -191,7 +191,7 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
         var view = { name: name, state: null };
 
         var eventHook = function (evt, toState, toParams) {
-          if (viewIsUpdating || $parallelState.isChangeInParallelUniverse(view, evt, toState)) {
+          if (viewIsUpdating || $parallelState.isChangeInParallelSubtree(view, evt, toState)) {
             return;
           }
           viewIsUpdating = true;
