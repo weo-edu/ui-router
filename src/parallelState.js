@@ -54,7 +54,7 @@ function $ParallelStateProvider($injector) {
       return stack;
     },
 
-    // Exits all inactivated substates when the parent state is exited.
+    // Exits all inactivated descendant substates when the ancestor state is exited.
     // When transitionTo is exiting a state, this function is called with the state being exited.  It checks the
     // registry of inactivated states for descendants of the exited state and also exits those descendants.  It then
     // removes the locals and de-registers the state from the inactivated registry.
@@ -63,16 +63,17 @@ function $ParallelStateProvider($injector) {
       for (var name in inactiveStates) {
         // TODO: run inactivations in the proper order.
         if (name.indexOf(substatePrefix) === 0) { // inactivated state's name starts with the prefix.
-          var exitedParallelState = inactiveStates[name];
-          if (exitedParallelState.self.onExit)
-            $injector.invoke(exitedParallelState.self.onExit, exitedParallelState.self, exitedParallelState.locals.globals);
-          exitedParallelState.locals = null;
+          var exiting = inactiveStates[name];
+          if (exiting.self.onExit)
+            $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+          exiting.locals = null;
           delete inactiveStates[name];
         }
       }
       if (state.self.onExit)
         $injector.invoke(state.self.onExit, state.self, state.locals.globals);
       state.locals = null;
+      delete inactiveStates[state.self.name];
     },
 
     // Adds a state to the inactivated parallel state registry.
@@ -114,6 +115,21 @@ function $ParallelStateProvider($injector) {
       if (!stateParams) return inactiveState;
       var paramsMatch = equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams);
       return paramsMatch ? inactiveState : null;
+    },
+
+    // Returns a parallel transition type necessary to enter the state.
+    // Transition can be: reactivate, updateStateParams, or null
+
+    // Note: if a state is being reactivated but params dont match, we treat
+    // it as a Exit/Enter, thus the special "updateStateParams" transition.
+    // If a parent inactivated state has "updateStateParams" transition type, then
+    // all descendant states must also be exit/entered, thus the first line of this function.
+    getEnterTransition: function (state, stateParams, ancestorParamsChanged) {
+      if (ancestorParamsChanged) return "updateStateParams";
+      var inactiveState = inactiveStates[state.name];
+      if (!inactiveState) return null;
+      var paramsMatch = equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams);
+      return paramsMatch ? "reactivate" : "updateStateParams";
     }
   };
 }

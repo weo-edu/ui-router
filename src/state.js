@@ -810,6 +810,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         }
       }
 
+      // Check if we are transitioning from a state inside a parallel tree to a state inside a different parallel state tree
+      // fromPath[keep] will be the root of the parallel tree being exited
+      var isParallelTransition = keep < fromPath.length && fromPath[keep] !== toPath[keep] && fromPath[keep].self.parallel;
+
       // Resolve locals for the remaining states, but don't update any global state just
       // yet -- if anything fails to resolve the current state needs to remain untouched.
       // We also set up an inheritance chain for the locals here. This allows the view directive
@@ -818,13 +822,17 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // empty and gets filled asynchronously. We need to keep track of the promise for the
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
-      var restoredStates = {}; // Used after all states are resolved to notify $parallelState
+      // When ancestor params change, any parallels states we would have reactivated have to be reinitialized.
+      var ancestorParamsChanged = false;
+      var pEnterTransitions = []; // Used after all states are resolved to notify $parallelState
       for (var l=keep; l<toPath.length; l++, state=toPath[l]) {
-        var restoredState = $parallelState.getInactivatedState(state, toParams);
-        locals = toLocals[l] = (restoredState ? restoredState.locals : inherit(locals));
-        if (restoredState) {
-          restoredStates[state.name] = true;
+        var ptransition = pEnterTransitions[l] = isParallelTransition && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
+        ancestorParamsChanged = (ptransition == "updateStateParams");
+        if (ptransition) console.log(state.self.name + ": " + ptransition);
+        if (ptransition == "reactivate") {
+          locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
         } else {
+          locals = toLocals[l] = inherit(locals);
           resolved = resolveState(state, toParams, state === to, resolved, locals);
         }
       }
@@ -838,13 +846,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
         if ($state.transition !== transition) return TransitionSuperseded;
 
-        // Check if we are transitioning to a state in a different parallel state tree
-        // fromPath[keep] will be the root of the parallel tree being exited
-        var isParallelTransition = keep < fromPath.length && fromPath[keep].self.parallel;
         // Exit 'from' states not kept
         for (l=fromPath.length-1; l>=keep; l--) {
           exiting = fromPath[l];
-          if (isParallelTransition) {
+          if (isParallelTransition && pEnterTransitions[l] !== "updateStateParams") {
             $parallelState.stateInactivated(exiting);
           } else {
             $parallelState.stateExiting(exiting);
@@ -855,7 +860,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         for (l=keep; l<toPath.length; l++) {
           entering = toPath[l];
           entering.locals = toLocals[l];
-          if (restoredStates[entering.self.name]) {
+          if (pEnterTransitions[l] == "reactivate") {
             $parallelState.stateReactivated(entering);
           } else {
             $parallelState.stateEntering(entering, toParams);
