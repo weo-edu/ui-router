@@ -10,9 +10,9 @@ function $ParallelStateProvider($injector) {
     parallelStates[state.name] = true;
   };
 
-  this.$get = function () {
+  this.$get = [ '$rootScope', function ($rootScope) {
     return parallelSupport;
-  };
+  } ];
 
   var parallelSupport = {
     // Used by state.js to determine if what kind of parallel state transition this is.
