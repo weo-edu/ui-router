@@ -69,7 +69,8 @@ function $ParallelStateProvider($injector) {
           var parallel = parallelArray[i];
           var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
           // State changed to somewhere below the _parent_ to the parallel state we live in.
-          var stateIncludesParentToSubtree = toState.name.indexOf(parentStateToParallel + ".") === 0;
+          var stateIncludesParentToSubtree =
+                  (parentStateToParallel === "" || toState.name.indexOf(parentStateToParallel + ".") === 0);
 
           var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
           var stateIsOurSubtreeRoot = toState.name == parallel;
