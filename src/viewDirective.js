@@ -171,8 +171,9 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
             autoScrollExp = attrs.autoscroll,
             renderer      = getRenderer(attrs, scope);
 
-        scope.$on('$stateChangeSuccess', function() {
-          if ($parallelState.isChangeInParallelSubtree(view, evt, toState)) return;
+        scope.$on('$stateChangeSuccess', function(evt, toState) {
+          var state = latestLocals && latestLocals.$$state;
+          if (state && $parallelState.isChangeInParallelSubtree(state, evt, toState)) return;
           updateView(false);
         });
         scope.$on('$viewContentLoading', function() {

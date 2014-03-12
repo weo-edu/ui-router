@@ -60,8 +60,8 @@ function $ParallelStateProvider($injector) {
     },
 
     // Detects and returns whether the state transition is changing to a state on a peered parallel subtree
-    isChangeInParallelSubtree: function (view, evt, toState) {
-      var parallelArray = parallelSupport.getParallelStateStack(view);
+    isChangeInParallelSubtree: function (state, evt, toState) {
+      var parallelArray = parallelSupport.getParallelStateStack(state);
       if (parallelArray.length && evt.name == '$stateChangeSuccess') {
         // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
         // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
@@ -84,12 +84,12 @@ function $ParallelStateProvider($injector) {
       return false;
     },
 
-    // Given a view, returns all ancestor states which are parallel.
+    // Given a state, returns all ancestor states which are parallel.
     // Walks up the view's state's ancestry tree and locates each ancestor state which is marked as parallel.
     // Returns an array populated with only those ancestor parallel states.
-    getParallelStateStack: function (view) {
-      if (!view || !view.state) return [];
-      var stack = [], name, stateNameComponents = view.state.self.name.split(".");
+    getParallelStateStack: function (state) {
+      if (!state) return [];
+      var stack = [], name, stateNameComponents = state.self.name.split(".");
       for (var i = 0; i < stateNameComponents.length; i++) {
         var partial = stateNameComponents[i];
         name = (name ? name + "." + partial : partial);
