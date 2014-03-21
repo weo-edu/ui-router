@@ -29,7 +29,7 @@ function $ParallelStateProvider($injector) {
       if (lastSubstate[toState.name] && // Changing directly to one of the "tab" states
               lastSubstate[toState.name] != toState.name) { // Last known state within the tab isn't the tab itself
         // Direct reference to a tab state from outside that tab (the user changed tabs)
-        // Instead of sending them to the blank tab state, send them to the last known state for tha tab
+        // Instead of sending them to the blank tab state, send them to the last known state for that tab
         evt.preventDefault();
         $state.go(lastSubstate[toState.name], lastParams[toState.name]);
       }
