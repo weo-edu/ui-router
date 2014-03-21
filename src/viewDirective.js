@@ -111,8 +111,8 @@
  * <ui-view autoscroll='scopeVariable'/>
  * </pre>
  */
-$ViewDirective.$inject = ['$state', '$injector', '$uiViewScroll'];
-function $ViewDirective(   $state,   $injector,   $uiViewScroll) {
+$ViewDirective.$inject = ['$state', '$parallelState', '$compile', '$controller', '$injector', '$uiViewScroll', '$document'];
+function $ViewDirective(   $state,   $parallelState,   $compile,   $controller,   $injector,   $uiViewScroll,   $document) {
 
   function getService() {
     return ($injector.has) ? function(service) {
@@ -171,7 +171,9 @@ function $ViewDirective(   $state,   $injector,   $uiViewScroll) {
             autoScrollExp = attrs.autoscroll,
             renderer      = getRenderer(attrs, scope);
 
-        scope.$on('$stateChangeSuccess', function() {
+        scope.$on('$stateChangeSuccess', function(evt, toState) {
+          var state = latestLocals && latestLocals.$$state;
+          if (state && $parallelState.isChangeInParallelSubtree(state, evt, toState)) return;
           updateView(false);
         });
         scope.$on('$viewContentLoading', function() {

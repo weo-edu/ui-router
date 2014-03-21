@@ -6,6 +6,7 @@ routerFiles = {
     'src/urlMatcherFactory.js',
     'src/urlRouter.js',
     'src/state.js',
+    'src/parallelState.js',
     'src/view.js',
     'src/viewScroll.js',
     'src/viewDirective.js',

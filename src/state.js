@@ -20,8 +20,8 @@
  *
  * The `$stateProvider` provides interfaces to declare these states for your app.
  */
-$StateProvider.$inject = ['$urlRouterProvider', '$urlMatcherFactoryProvider', '$locationProvider'];
-function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $locationProvider) {
+$StateProvider.$inject = ['$urlRouterProvider', '$urlMatcherFactoryProvider', '$locationProvider', '$parallelStateProvider'];
+function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $locationProvider,   $parallelStateProvider) {
 
   var root, states = {}, $state, queue = {}, abstractKey = 'abstract';
 
@@ -198,6 +198,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       if (isFunction(stateBuilder[key])) state[key] = stateBuilder[key](state, stateBuilder.$delegates[key]);
     }
     states[name] = state;
+    if (state.parallel) $parallelStateProvider.registerParallelState(state);
 
     // Register the state in the global state list and with $urlRouter if necessary.
     if (!state[abstractKey] && state.url) {
@@ -536,8 +537,8 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
    */
   // $urlRouter is injected just to ensure it gets instantiated
   this.$get = $get;
-  $get.$inject = ['$rootScope', '$q', '$view', '$injector', '$resolve', '$stateParams', '$location', '$urlRouter', '$browser'];
-  function $get(   $rootScope,   $q,   $view,   $injector,   $resolve,   $stateParams,   $location,   $urlRouter,   $browser) {
+  $get.$inject = ['$rootScope', '$q', '$view', '$injector', '$resolve', '$stateParams', '$location', '$urlRouter', '$browser', '$parallelState'];
+  function $get(   $rootScope,   $q,   $view,   $injector,   $resolve,   $stateParams,   $location,   $urlRouter,   $browser,   $parallelState) {
 
     var TransitionSuperseded = $q.reject(new Error('transition superseded'));
     var TransitionPrevented = $q.reject(new Error('transition prevented'));
@@ -625,7 +626,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       $current: root,
       transition: null
     };
-
+    $parallelStateProvider.kludgeProvideState($state);
     /**
      * @ngdoc function
      * @name ui.router.state.$state#reload
@@ -860,6 +861,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         }
       }
 
+      // Determine if we are transitioning FROM a state inside a parallel tree and/or transitioning TO a state inside
+      // a parallel state tree
+      var ptType = $parallelState.getParallelTransitionType(keep, fromPath, toPath);
+
       // Resolve locals for the remaining states, but don't update any global state just
       // yet -- if anything fails to resolve the current state needs to remain untouched.
       // We also set up an inheritance chain for the locals here. This allows the view directive
@@ -868,9 +873,19 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // empty and gets filled asynchronously. We need to keep track of the promise for the
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
-      for (var l = keep; l < toPath.length; l++, state = toPath[l]) {
-        locals = toLocals[l] = inherit(locals);
-        resolved = resolveState(state, toParams, state === to, resolved, locals);
+      // When ancestor params change, any parallels states we would have reactivated have to be reinitialized.
+      var ancestorParamsChanged = false;
+      var pEnterTransitions = []; // Used after all states are resolved to notify $parallelState
+      for (var l = keep; l < toPath.length; l++, state=toPath[l]) {
+        var pEnterTransition = pEnterTransitions[l] =
+                ptType && ptType.to && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
+        ancestorParamsChanged = (pEnterTransition == "updateStateParams");
+        if (pEnterTransition == "reactivate") {
+          locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
+        } else {
+          locals = toLocals[l] = inherit(locals);
+          resolved = resolveState(state, toParams, state === to, resolved, locals);
+        }
       }
 
       // Once everything is resolved, we are ready to perform the actual transition
@@ -885,18 +900,24 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          if (exiting.self.onExit) {
-            $injector.invoke(exiting.self.onExit, exiting.self, exiting.locals.globals);
+          // Treat parallel transition type "updateStateParams" as an exit/enter
+          if (ptType && ptType.from && pEnterTransitions[l] !== "updateStateParams") {
+            $parallelState.stateInactivated(exiting);
+          } else {
+            $parallelState.stateExiting(exiting);
           }
-          exiting.locals = null;
         }
 
         // Enter 'to' states not kept
         for (l = keep; l < toPath.length; l++) {
           entering = toPath[l];
           entering.locals = toLocals[l];
-          if (entering.self.onEnter) {
-            $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
+          if (pEnterTransitions[l] == "reactivate") {
+            $parallelState.stateReactivated(entering);
+          } else {
+            $parallelState.stateEntering(entering, toParams);
+            if (entering.self.onEnter)
+              $injector.invoke(entering.self.onEnter, entering.self, entering.locals.globals);
           }
         }
 
