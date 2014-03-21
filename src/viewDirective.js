@@ -172,12 +172,11 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
             renderer      = getRenderer(attrs, scope);
 
         scope.$on('$stateChangeSuccess', function(evt, toState) {
-          var state = latestLocals && latestLocals.$$state;
-          if (state && $parallelState.isChangeInParallelSubtree(state, evt, toState)) return;
-          updateView(false);
+          updateView(false, evt, toState);
         });
-        scope.$on('$viewContentLoading', function() {
-          updateView(false);
+        scope.$on('$viewContentLoading', function(evt, options) {
+          var toState = options && options.view && options.view.self;   // is this ever defined?
+          updateView(false, evt, toState);
         });
 
         updateView(true);
@@ -203,13 +202,16 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
           }
         }
 
-        function updateView(firstTime) {
+        function updateView(firstTime, event, toState) {
           var newScope        = scope.$new(),
               name            = currentEl && currentEl.data('$uiViewName'),
               previousLocals  = name && $state.$current && $state.$current.locals[name];
 
-          if (!firstTime && previousLocals === latestLocals) return; // nothing to do
+          var locals = latestLocals || previousLocals;
+          var state = locals && locals.$$state;
+          var sticky = state && $parallelState.isEventInParallelSubtree(state, event, toState, scope, $element);
 
+          if (sticky || (!firstTime && previousLocals === latestLocals)) return; // nothing to do
           var clone = $transclude(newScope, function(clone) {
             renderer.enter(clone, $element, function onUiViewEnter() {
               if (angular.isDefined(autoScrollExp) && !autoScrollExp || scope.$eval(autoScrollExp)) {

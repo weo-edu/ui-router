@@ -5,6 +5,7 @@ function $ParallelStateProvider($injector) {
   var parallelStates = {}; // state.name -> true
   var lastSubstate = {}, lastParams = {};
   var $state;
+  var nullTransition = { toState: null, toParams: null, fromState: null, fromParams: null };
 
   // Called by $stateProvider.registerState();
   // registers a parallel state with $parallelStateProvider
@@ -26,6 +27,8 @@ function $ParallelStateProvider($injector) {
 //  this.$get = [ '$rootScope', '$state', function ($rootScope, $state) {
     // Intercept state transitions directly to the tab, and instead switch to the last known substate
     $rootScope.$on("$stateChangeStart", function (evt, toState, toParams, fromState, fromParams) {
+      parallelSupport.currentTransition = { toState: toState, toParams: toParams, fromState: fromState, fromParams: fromParams };
+
       if (lastSubstate[toState.name] && // Changing directly to one of the "tab" states
               lastSubstate[toState.name] != toState.name) { // Last known state within the tab isn't the tab itself
         // Direct reference to a tab state from outside that tab (the user changed tabs)
@@ -36,7 +39,12 @@ function $ParallelStateProvider($injector) {
     });
 
     // Record the last active sub-state
+    $rootScope.$on("$stateChangeError", function (evt, toState, toParams, fromState, fromParams) {
+      parallelSupport.currentTransition = nullTransition;
+    });
+    // Record the last active sub-state
     $rootScope.$on("$stateChangeSuccess", function (evt, toState, toParams, fromState, fromParams) {
+      parallelSupport.currentTransition = nullTransition;
       // After state change within a tab, record the "to state" as the last known state for that tab.
       for (var state in lastSubstate) {
         if (toState == state || toState.name.indexOf(state + ".") != -1) {
@@ -50,6 +58,7 @@ function $ParallelStateProvider($injector) {
   } ];
 
   var parallelSupport = {
+    currentTransition: nullTransition,
     // Used by state.js to determine if what kind of parallel state transition this is.
     // returns { from: (bool), to: (bool) } or nulll if the transition not a parallel state change
     getParallelTransitionType: function (keep, fromPath, toPath) {
@@ -60,11 +69,13 @@ function $ParallelStateProvider($injector) {
     },
 
     // Detects and returns whether the state transition is changing to a state on a peered parallel subtree
-    isChangeInParallelSubtree: function (state, evt, toState) {
+    isEventInParallelSubtree: function (state, evt, toState, scope, el) {
+      // var elid = el && el.length && el[0].nextSibling && el[0].nextSibling.id;
       var parallelArray = parallelSupport.getParallelStateStack(state);
-      if (parallelArray.length && evt.name == '$stateChangeSuccess') {
+      if (parallelArray.length && (evt.name == '$stateChangeSuccess' || evt.name == '$viewContentLoading')) {
         // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
         // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
+        toState = toState || this.currentTransition.toState;
         for (var i = 0; i < parallelArray.length; i++) {
           var parallel = parallelArray[i];
           var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
@@ -76,7 +87,7 @@ function $ParallelStateProvider($injector) {
           var stateIsOurSubtreeRoot = toState.name == parallel;
           if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
             // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
-//              console.log(elId + "short circuited parallel eventHook(" + name + ")" + " parallel: ", parallel);
+            // console.log("short circuited ui-view updateView #" + elid + " toState: " + toState.name);
             return true;
           }
         }
@@ -173,6 +184,7 @@ function $ParallelStateProvider($injector) {
       var inactiveState = inactiveStates[state.name];
       if (!inactiveState) return null;
       var paramsMatch = equalForKeys(stateParams, inactiveState.locals.globals.$stateParams, state.ownParams);
+      // console.log("getEnterTransition: " + state.name + (paramsMatch ? ": reactivate" : ": updateStateParams"));
       return paramsMatch ? "reactivate" : "updateStateParams";
     }
   };
