@@ -69,7 +69,7 @@ function $ParallelStateProvider($injector) {
               inactivesByParent = this.getInactiveStatesByParent();
       var keep = 0, state = fromPath[keep];
       while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
-        keep++;
+        state = toPath[++keep];
       }
 
       if (keep <= 0) return output;
@@ -82,18 +82,17 @@ function $ParallelStateProvider($injector) {
         var enterTrans = !pType.to ? "enter" : this.getEnterTransition(toPath[idx], transition.toParams, update);
         update = update || enterTrans == 'updateStateParams';
         output.enter[idx] = enterTrans;
-        reactivatedStates[toPath[idx].name] = toPath[idx];
+        if (enterTrans == 'reactivate')
+          reactivatedStates[toPath[idx].name] = toPath[idx];
       }
 
       // Locate currently inactive states (at pivot and above)
       for (idx = 0; idx < keep; idx++) {
-        var inactiveChildren = (idx < keep ? inactivesByParent[fromPath[idx].name] : undefined);
-        if (inactiveChildren && inactiveChildren.length) {
-          for (var i = 0; i < inactiveChildren; i++) {
-            var child = inactiveChildren[i];
-            if (!reactivatedStates[child.name])
-              output.inactives.push(child);
-          }
+        var inactiveChildren = inactivesByParent[fromPath[idx].self.name];
+        for (var i = 0; inactiveChildren && i < inactiveChildren.length; i++) {
+          var child = inactiveChildren[i];
+          if (!reactivatedStates[child.name])
+            output.inactives.push(child);
         }
       }
 
