@@ -61,12 +61,11 @@ function $ParallelStateProvider($injector) {
     currentTransition: nullTransition,
 
     processTransition: function(transition) {
-      var output = { inactives: [], enter: [], exit: [], activeViews: {}, inactiveViews: {} };
+      var output = { inactives: [], enter: [], exit: [] };
       var     fromPath = transition.fromState.path,
               fromParams = transition.fromParams,
               toPath = transition.toState.path,
               toParams = transition.toParams,
-//              pivotState = fromPath[keep - 1],
               inactivesByParent = this.getInactiveStatesByParent();
       var keep = 0, state = fromPath[keep];
       while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
@@ -76,22 +75,26 @@ function $ParallelStateProvider($injector) {
       if (keep <= 0) return output;
       var idx, pType = this.getParallelTransitionType(fromPath, toPath, keep);
 
-      // Locate currently inactive states (at pivot and above)
-      for (idx = 0; idx < keep; idx++) {
-        var inactiveChildren = (idx < keep ? inactivesByParent[fromPath[idx].name] : undefined);
-        if (inactiveChildren && inactiveChildren.length) {
-          for (var i = 0; i < inactiveChildren; i++) {
-            output.inactives.push(inactiveChildren[i]);
-          }
-        }
-      }
-
+      var reactivatedStates = {};
       var update = false; // When ancestor params change, treat reactivation as exit/enter
       // Calculate the "enter" transitions for new states in toPath
       for (idx = keep; idx < toPath.length; idx++) {
         var enterTrans = !pType.to ? "enter" : this.getEnterTransition(toPath[idx], transition.toParams, update);
         update = update || enterTrans == 'updateStateParams';
         output.enter[idx] = enterTrans;
+        reactivatedStates[toPath[idx].name] = toPath[idx];
+      }
+
+      // Locate currently inactive states (at pivot and above)
+      for (idx = 0; idx < keep; idx++) {
+        var inactiveChildren = (idx < keep ? inactivesByParent[fromPath[idx].name] : undefined);
+        if (inactiveChildren && inactiveChildren.length) {
+          for (var i = 0; i < inactiveChildren; i++) {
+            var child = inactiveChildren[i];
+            if (!reactivatedStates[child.name])
+              output.inactives.push(child);
+          }
+        }
       }
 
       // Calculate the "exit" transition for states not kept, in fromPath.
@@ -105,7 +108,7 @@ function $ParallelStateProvider($injector) {
         output.exit[idx] = exitTrans;
       }
 
-//      console.log("processTransition - pivot: " + pivotState.name, pivotState, output);
+      console.log("processTransition: " , output);
       return output;
     },
 

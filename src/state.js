@@ -619,7 +619,8 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       return retryTransition;
     }
 
-    root.locals = { resolve: null, globals: { $stateParams: {} } };
+    root.inactiveLocals = {};
+    root.locals = inherit(root.inactiveLocals, { foo: 'bar', resolve: null, globals: { $stateParams: {} } });
     $state = {
       params: {},
       current: root.self,
@@ -806,32 +807,31 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       var pTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
 
+      var inactiveLocals = root.inactiveLocals;
       if (!options.reload) {
+        // Rebuild inactiveLocals
+        for (var name in inactiveLocals) { delete inactiveLocals[name]; }
         // Put inactivated locals on there too.
-        var inactiveCount = 0, inactiveViews = {};
         for (var i = 0; i < pTrans.inactives.length; i++) {
-          state = pTrans.inactives[i];
-          for (var name in state.locals) {
-            if (state.locals.hasOwnProperty(name)) {
-              var inactiveView = state.locals[name];
+          var inactive = pTrans.inactives[i];
+          for (name in inactive.locals) {
+            if (inactive.locals.hasOwnProperty(name)) {
+              var inactiveLocal = inactive.locals[name];
               // Add all inactive views not already included.
               if (name.indexOf("@") != -1 && !locals[name]) {
                 console.log(name + ": added inactive locals");
-                inactiveViews[name] = inactiveView;
-                inactiveCount++;
+                inactiveLocals[name] = inactiveLocal;
               }
             }
           }
         }
-
-//        if (inactiveCount)
-//          locals = inherit(locals, inactiveViews);
 
         while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
           locals = toLocals[keep] = state.locals;
           keep++;
           state = toPath[keep];
         }
+
       }
 
       // If we're going to the same state and all locals are kept, we've got nothing to do.
