@@ -210,8 +210,10 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
           var locals = latestLocals || previousLocals;
           var state = locals && locals.$$state;
           var sticky = state && $parallelState.isEventInParallelSubtree(state, event, toState, scope, $element);
-
-          if (sticky || (!firstTime && previousLocals === latestLocals)) return; // nothing to do
+          var localsMatch = previousLocals === latestLocals;
+          if (!firstTime && sticky && !localsMatch)
+            console.log("woops");
+          if (!firstTime && localsMatch) return; // nothing to do
           var clone = $transclude(newScope, function(clone) {
             renderer.enter(clone, $element, function onUiViewEnter() {
               if (angular.isDefined(autoScrollExp) && !autoScrollExp || scope.$eval(autoScrollExp)) {

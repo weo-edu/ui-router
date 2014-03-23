@@ -804,7 +804,29 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // Starting from the root of the path, keep all levels that haven't changed
       var keep = 0, state = toPath[keep], locals = root.locals, toLocals = [];
 
+      var pTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
+
       if (!options.reload) {
+        // Put inactivated locals on there too.
+        var inactiveCount = 0, inactiveViews = {};
+        for (var i = 0; i < pTrans.inactives.length; i++) {
+          state = pTrans.inactives[i];
+          for (var name in state.locals) {
+            if (state.locals.hasOwnProperty(name)) {
+              var inactiveView = state.locals[name];
+              // Add all inactive views not already included.
+              if (name.indexOf("@") != -1 && !locals[name]) {
+                console.log(name + ": added inactive locals");
+                inactiveViews[name] = inactiveView;
+                inactiveCount++;
+              }
+            }
+          }
+        }
+
+//        if (inactiveCount)
+//          locals = inherit(locals, inactiveViews);
+
         while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
           locals = toLocals[keep] = state.locals;
           keep++;
@@ -863,7 +885,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       // Determine if we are transitioning FROM a state inside a parallel tree and/or transitioning TO a state inside
       // a parallel state tree
-      var ptType = $parallelState.getParallelTransitionType(keep, fromPath, toPath);
+      var ptType = $parallelState.getParallelTransitionType(fromPath, toPath, keep);
 
       // Resolve locals for the remaining states, but don't update any global state just
       // yet -- if anything fails to resolve the current state needs to remain untouched.
@@ -873,21 +895,14 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // empty and gets filled asynchronously. We need to keep track of the promise for the
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
-      // When ancestor params change, any parallels states we would have reactivated have to be reinitialized.
-      var ancestorParamsChanged = false;
-      var pEnterTransitions = []; // Used after all states are resolved to notify $parallelState
       for (var l = keep; l < toPath.length; l++, state=toPath[l]) {
-        var pEnterTransition = pEnterTransitions[l] =
-                ptType && ptType.to && $parallelState.getEnterTransition(state, toParams, ancestorParamsChanged);
-        ancestorParamsChanged = (pEnterTransition == "updateStateParams");
-        if (pEnterTransition == "reactivate") {
+        if (pTrans.enter[l] == "reactivate") {
           locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
         } else {
           locals = toLocals[l] = inherit(locals);
           resolved = resolveState(state, toParams, state === to, resolved, locals);
         }
       }
-
       // Once everything is resolved, we are ready to perform the actual transition
       // and return a promise for the new state. We also keep track of what the
       // current promise is, so that we can detect overlapping transitions and
@@ -901,7 +916,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
           // Treat parallel transition type "updateStateParams" as an exit/enter
-          if (ptType && ptType.from && pEnterTransitions[l] !== "updateStateParams") {
+          if (pTrans.exit[l] == "inactivate") {
             $parallelState.stateInactivated(exiting);
           } else {
             $parallelState.stateExiting(exiting);
@@ -912,7 +927,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         for (l = keep; l < toPath.length; l++) {
           entering = toPath[l];
           entering.locals = toLocals[l];
-          if (pEnterTransitions[l] == "reactivate") {
+          if (pTrans.enter[l] == "reactivate") {
             $parallelState.stateReactivated(entering);
           } else {
             $parallelState.stateEntering(entering, toParams);
@@ -1220,6 +1235,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
           // Provide access to the state itself for internal use
           result.$$state = state;
           result.$$controllerAs = view.controllerAs;
+          console.log("Resolved " + name);
           dst[name] = result;
         }));
       });
