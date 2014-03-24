@@ -804,23 +804,18 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       // Starting from the root of the path, keep all levels that haven't changed
       var keep = 0, state = toPath[keep], locals = root.locals, toLocals = [];
-
-      var pTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
+      var parTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
 
       var inactiveLocals = root.inactiveLocals;
       if (!options.reload) {
         // Rebuild root.inactiveLocals each time...
         for (var name in inactiveLocals) { delete inactiveLocals[name]; }
         // Put inactivated locals on there too.
-        for (var i = 0; i < pTrans.inactives.length; i++) {
-          var inLocals = pTrans.inactives[i].locals;
-          for (name in inLocals) {
-            if (inLocals.hasOwnProperty(name)) {
-              var inactiveLocal = inLocals[name];
-              // Add all inactive views not already included.
-              if (name.indexOf("@") != -1 && !locals[name]) {
-                inactiveLocals[name] = inactiveLocal;
-              }
+        for (var i = 0; i < parTrans.inactives.length; i++) {
+          var iLocals = parTrans.inactives[i].locals;
+          for (name in iLocals) {
+            if (iLocals.hasOwnProperty(name) && name.indexOf("@") != -1 && !locals[name]) {
+              inactiveLocals[name] = iLocals[name]; // Add all inactive views not already included.
             }
           }
         }
@@ -890,7 +885,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       // (fully resolved) current locals, and pass this down the chain.
       var resolved = $q.when(locals);
       for (var l = keep; l < toPath.length; l++, state=toPath[l]) {
-        if (pTrans.enter[l] == "reactivate") {
+        if (parTrans.enter[l] == "reactivate") {
           locals = toLocals[l] = $parallelState.getInactivatedState(state, toParams).locals;
         } else {
           locals = toLocals[l] = inherit(locals);
@@ -909,7 +904,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          if (pTrans.exit[l] == "inactivate") {
+          if (parTrans.exit[l] == "inactivate") {
             $parallelState.stateInactivated(exiting);
           } else {
             $parallelState.stateExiting(exiting);
@@ -920,7 +915,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         for (l = keep; l < toPath.length; l++) {
           entering = toPath[l];
           entering.locals = toLocals[l];
-          if (pTrans.enter[l] == "reactivate") {
+          if (parTrans.enter[l] == "reactivate") {
             $parallelState.stateReactivated(entering);
           } else {
             $parallelState.stateEntering(entering, toParams);
