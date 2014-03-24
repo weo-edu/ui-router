@@ -806,6 +806,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       var inactiveLocals = root.inactiveLocals;
       // Starting from the root of the path, keep all levels that haven't changed
       var keep = 0, state = toPath[keep], locals = root.locals, toLocals = [];
+
       if (!options.reload) {
         while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
           locals = toLocals[keep] = state.locals;
