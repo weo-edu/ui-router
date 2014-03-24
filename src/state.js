@@ -620,7 +620,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
     }
 
     root.inactiveLocals = {};
-    root.locals = inherit(root.inactiveLocals, { foo: 'bar', resolve: null, globals: { $stateParams: {} } });
+    root.locals = inherit(root.inactiveLocals, { resolve: null, globals: { $stateParams: {} } });
     $state = {
       params: {},
       current: root.self,
