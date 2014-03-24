@@ -830,7 +830,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
           keep++;
           state = toPath[keep];
         }
-
       }
 
       // If we're going to the same state and all locals are kept, we've got nothing to do.
@@ -882,10 +881,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         }
       }
 
-      // Determine if we are transitioning FROM a state inside a parallel tree and/or transitioning TO a state inside
-      // a parallel state tree
-      var ptType = $parallelState.getParallelTransitionType(fromPath, toPath, keep);
-
       // Resolve locals for the remaining states, but don't update any global state just
       // yet -- if anything fails to resolve the current state needs to remain untouched.
       // We also set up an inheritance chain for the locals here. This allows the view directive
@@ -914,7 +909,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
         // Exit 'from' states not kept
         for (l = fromPath.length - 1; l >= keep; l--) {
           exiting = fromPath[l];
-          // Treat parallel transition type "updateStateParams" as an exit/enter
           if (pTrans.exit[l] == "inactivate") {
             $parallelState.stateInactivated(exiting);
           } else {
@@ -1234,7 +1228,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
           // Provide access to the state itself for internal use
           result.$$state = state;
           result.$$controllerAs = view.controllerAs;
-          console.log("Resolved " + name);
           dst[name] = result;
         }));
       });
