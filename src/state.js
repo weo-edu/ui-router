@@ -819,7 +819,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
               var inactiveLocal = inactive.locals[name];
               // Add all inactive views not already included.
               if (name.indexOf("@") != -1 && !locals[name]) {
-                console.log(name + ": added inactive locals");
                 inactiveLocals[name] = inactiveLocal;
               }
             }

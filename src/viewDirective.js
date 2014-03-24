@@ -111,8 +111,8 @@
  * <ui-view autoscroll='scopeVariable'/>
  * </pre>
  */
-$ViewDirective.$inject = ['$state', '$parallelState', '$compile', '$controller', '$injector', '$uiViewScroll', '$document'];
-function $ViewDirective(   $state,   $parallelState,   $compile,   $controller,   $injector,   $uiViewScroll,   $document) {
+$ViewDirective.$inject = ['$state', '$injector', '$uiViewScroll'];
+function $ViewDirective(   $state,   $injector,   $uiViewScroll) {
 
   function getService() {
     return ($injector.has) ? function(service) {
@@ -171,12 +171,11 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
             autoScrollExp = attrs.autoscroll,
             renderer      = getRenderer(attrs, scope);
 
-        scope.$on('$stateChangeSuccess', function(evt, toState) {
-          updateView(false, evt, toState);
+        scope.$on('$stateChangeSuccess', function() {
+          updateView(false);
         });
-        scope.$on('$viewContentLoading', function(evt, options) {
-          var toState = options && options.view && options.view.self;   // is this ever defined?
-          updateView(false, evt, toState);
+        scope.$on('$viewContentLoading', function() {
+          updateView(false);
         });
 
         updateView(true);
@@ -202,18 +201,13 @@ function $ViewDirective(   $state,   $parallelState,   $compile,   $controller, 
           }
         }
 
-        function updateView(firstTime, event, toState) {
+        function updateView(firstTime) {
           var newScope        = scope.$new(),
               name            = currentEl && currentEl.data('$uiViewName'),
               previousLocals  = name && $state.$current && $state.$current.locals[name];
 
-          var locals = latestLocals || previousLocals;
-          var state = locals && locals.$$state;
-          var sticky = state && $parallelState.isEventInParallelSubtree(state, event, toState, scope, $element);
-          var localsMatch = previousLocals === latestLocals;
-          if (!firstTime && sticky && !localsMatch)
-            console.log("woops");
-          if (!firstTime && localsMatch) return; // nothing to do
+          if (!firstTime && previousLocals === latestLocals) return; // nothing to do
+
           var clone = $transclude(newScope, function(clone) {
             renderer.enter(clone, $element, function onUiViewEnter() {
               if (angular.isDefined(autoScrollExp) && !autoScrollExp || scope.$eval(autoScrollExp)) {

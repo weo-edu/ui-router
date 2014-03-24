@@ -42,6 +42,7 @@ function $ParallelStateProvider($injector) {
     $rootScope.$on("$stateChangeError", function (evt, toState, toParams, fromState, fromParams) {
       parallelSupport.currentTransition = nullTransition;
     });
+
     // Record the last active sub-state
     $rootScope.$on("$stateChangeSuccess", function (evt, toState, toParams, fromState, fromParams) {
       parallelSupport.currentTransition = nullTransition;
@@ -60,71 +61,80 @@ function $ParallelStateProvider($injector) {
   var parallelSupport = {
     currentTransition: nullTransition,
 
+    // Main API for $parallelState, used by $state.
+    // Processes a potential transition, returns an object with the following attributes:
+    // {
+    //    inactives: Array of all states which will be inactive if the transition is completed. (both previously and newly inactivated)
+    //    enter: Enter transition type for all added states.  This is a parallel array to "toStates" array in $state.transitionTo.
+    //    exit: Exit transition type for all removed states.  This is a parallel array to "fromStates" array in $state.transitionTo.
+    // }
     processTransition: function(transition) {
-      var output = { inactives: [], enter: [], exit: [] };
+      // This object is returned
+      var result = { inactives: [], enter: [], exit: [] };
       var     fromPath = transition.fromState.path,
               fromParams = transition.fromParams,
               toPath = transition.toState.path,
-              toParams = transition.toParams,
-              inactivesByParent = this.getInactiveStatesByParent();
+              toParams = transition.toParams
+      // Inactive states, before the transition is processed, mapped to the parent parallel state.
+      var inactivesByParent = this.getInactiveStatesByParent();
+
+      // Duplicates logic in $state.transitionTo, primarily to find the pivot state (i.e., the "keep" value)
       var keep = 0, state = fromPath[keep];
       while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
         state = toPath[++keep];
       }
 
-      if (keep <= 0) return output;
-      var idx, pType = this.getParallelTransitionType(fromPath, toPath, keep);
+      if (keep <= 0) return result;
 
-      var reactivatedStates = {};
-      var update = false; // When ancestor params change, treat reactivation as exit/enter
+      var idx, reactivatedStates = {}, pType = this.getParallelTransitionType(fromPath, toPath, keep);
+      var ancestorUpdated = false; // When ancestor params change, treat reactivation as exit/enter
+
       // Calculate the "enter" transitions for new states in toPath
+      // Enter transitions will be either "enter", "reactivate", or "updateStateParams" where
+      //   enter: full resolve, no special logic
+      //   reactivate: use previous locals
+      //   updateStateParams: like 'enter', except exit the inactive state before entering it.
       for (idx = keep; idx < toPath.length; idx++) {
-        var enterTrans = !pType.to ? "enter" : this.getEnterTransition(toPath[idx], transition.toParams, update);
-        update = update || enterTrans == 'updateStateParams';
-        output.enter[idx] = enterTrans;
+        var enterTrans = !pType.to ? "enter" : this.getEnterTransition(toPath[idx], transition.toParams, ancestorUpdated);
+        ancestorUpdated = (ancestorUpdated || enterTrans == 'updateStateParams');
+        result.enter[idx] = enterTrans;
+        // If we're reactivating a state, make a note of it, so we can remove that state from the "inactive" list
         if (enterTrans == 'reactivate')
           reactivatedStates[toPath[idx].name] = toPath[idx];
       }
 
-      // Locate currently inactive states (at pivot and above)
+      // Locate currently and newly inactive states (at pivot and above) and store them in the output array 'inactives'.
       for (idx = 0; idx < keep; idx++) {
         var inactiveChildren = inactivesByParent[fromPath[idx].self.name];
         for (var i = 0; inactiveChildren && i < inactiveChildren.length; i++) {
           var child = inactiveChildren[i];
+          // Don't organize state as inactive if we're about to reactivate it.
           if (!reactivatedStates[child.name])
-            output.inactives.push(child);
+            result.inactives.push(child);
         }
       }
 
       // Calculate the "exit" transition for states not kept, in fromPath.
+      // Exit transition can be one of:
+      //   exit: standard state exit logic
+      //   inactivate: register state as an inactive state
       for (idx = keep; idx < fromPath.length; idx++) {
         var exitTrans = "exit";
         if (pType.from) {
-          // State is being inactivated, note this in
-          output.inactives.push(fromPath[idx]);
+          // State is being inactivated, note this in result.inactives array
+          result.inactives.push(fromPath[idx]);
           exitTrans = "inactivate";
         }
-        output.exit[idx] = exitTrans;
+        result.exit[idx] = exitTrans;
       }
 
-      console.log("processTransition: " , output);
-      return output;
+//      console.log("processTransition: " , result);
+      return result;
     },
 
-    parallelStatesByParent: function() {
-      var mappedStates = {};
-      for (var name in parallelStates) {
-        var pstate = parallelStates[name];
-        var parent = pstate.parent;
-        mappedStates[parent.name] = mappedStates[parent.name] || [];
-        mappedStates[parent.name].push(pstate);
-      }
-      return mappedStates;
-    },
-
-    // All inactive states are parallel, or a child of a parallel state.
-    // Finds the closest ancestor parallel state, then find that state's parent.
-    // Map each inactive state to its closest parent-to-parallel state.
+    // Each inactive states is either a parallel state, or a child of a parallel state.
+    // This function finds the closest ancestor parallel state, then find that state's parent.
+    // Map all inactive states to their closest parent-to-parallel state.
     getInactiveStatesByParent: function() {
       var mappedStates = {};
       for (var name in inactiveStates) {
@@ -139,40 +149,13 @@ function $ParallelStateProvider($injector) {
       return mappedStates;
     },
 
-    // Used by state.js to determine if what kind of parallel state transition this is.
+    // Used by processTransition to determine if what kind of parallel state transition this is.
     // returns { from: (bool), to: (bool) }
     getParallelTransitionType: function (fromPath, toPath, keep) {
       if (fromPath[keep] === toPath[keep]) return { from: false, to: false };
       var parallelFromState = keep < fromPath.length && fromPath[keep].self.parallel;
       var parallelToState = keep < toPath.length && toPath[keep].self.parallel;
       return { from: parallelFromState, to: parallelToState };
-    },
-
-    // Detects and returns whether the state transition is changing to a state on a peered parallel subtree
-    isEventInParallelSubtree: function (state, evt, toState, scope, el) {
-      // var elid = el && el.length && el[0].nextSibling && el[0].nextSibling.id;
-      var parallelArray = parallelSupport.getParallelStateStack(state);
-      if (parallelArray.length && (evt.name == '$stateChangeSuccess' || evt.name == '$viewContentLoading')) {
-        // Check if the state is changing to a different sibling parallel subtree.  If there are more than one parallel state
-        // definitions in this path (when walking up the state tree towards root), then check for sibling parallel subtrees at each "fork"
-        toState = toState || this.currentTransition.toState;
-        for (var i = 0; i < parallelArray.length; i++) {
-          var parallel = parallelArray[i].name;
-          var parentStateToParallel = parallel.substring(0, parallel.lastIndexOf('.'));
-          // State changed to somewhere below the _parent_ to the parallel state we live in.
-          var stateIncludesParentToSubtree =
-                  (parentStateToParallel === "" || toState.name.indexOf(parentStateToParallel + ".") === 0);
-
-          var stateIncludesOurSubtreeRoot = toState.name.indexOf(parallel + ".") != -1;
-          var stateIsOurSubtreeRoot = toState.name == parallel;
-          if (stateIncludesParentToSubtree && !stateIncludesOurSubtreeRoot && !stateIsOurSubtreeRoot) {
-            // The state changed to another some other parallel state somewhere OUTSIDE our parallel subtree
-            // console.log("short circuited ui-view updateView #" + elid + " toState: " + toState.name);
-            return true;
-          }
-        }
-      }
-      return false;
     },
 
     // Given a state, returns all ancestor states which are parallel.
@@ -196,7 +179,7 @@ function $ParallelStateProvider($injector) {
     stateExiting: function (exiting) {
       var substatePrefix = exiting.self.name + "."; // All descendant states will start with this prefix
       for (var name in inactiveStates) {
-        // TODO: run inactivations in the proper order.
+        // TODO: Might need to run the inactivations in the proper depth-first order?
         if (name.indexOf(substatePrefix) === 0) { // inactivated state's name starts with the prefix.
           var inactiveExiting = inactiveStates[name];
           if (inactiveExiting.self.onExit)
@@ -241,7 +224,6 @@ function $ParallelStateProvider($injector) {
     },
 
     // Given a state and (optional) stateParams, returns the inactivated state from the inactive parallel state registry.
-    // TODO: Need to account for re-activation of a state, where stateParams have changed.
     getInactivatedState: function (state, stateParams) {
       var inactiveState = inactiveStates[state.name];
       if (!inactiveState) return null;
@@ -251,7 +233,7 @@ function $ParallelStateProvider($injector) {
     },
 
     // Returns a parallel transition type necessary to enter the state.
-    // Transition can be: reactivate, updateStateParams, or null
+    // Transition can be: reactivate, updateStateParams, or enter
 
     // Note: if a state is being reactivated but params dont match, we treat
     // it as a Exit/Enter, thus the special "updateStateParams" transition.
