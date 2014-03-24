@@ -814,6 +814,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
           state = toPath[keep];
         }
 
+        // TODO: This does not restore root.inactiveLocals after failed transitions.
         for (var name in inactiveLocals) { delete inactiveLocals[name]; } // Rebuild root.inactiveLocals each time...
         for (var i = 0; i < parTrans.inactives.length; i++) {
           var iLocals = parTrans.inactives[i].locals;
