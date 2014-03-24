@@ -802,11 +802,10 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       var toPath = to.path;
 
+      var parTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
+      var inactiveLocals = root.inactiveLocals;
       // Starting from the root of the path, keep all levels that haven't changed
       var keep = 0, state = toPath[keep], locals = root.locals, toLocals = [];
-      var parTrans = $parallelState.processTransition({ toState: to, fromState: from, toParams: toParams, fromParams: fromParams });
-
-      var inactiveLocals = root.inactiveLocals;
       if (!options.reload) {
         while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
           locals = toLocals[keep] = state.locals;
