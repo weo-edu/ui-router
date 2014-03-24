@@ -809,14 +809,14 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       var inactiveLocals = root.inactiveLocals;
       if (!options.reload) {
-        // Rebuild inactiveLocals
+        // Rebuild root.inactiveLocals each time...
         for (var name in inactiveLocals) { delete inactiveLocals[name]; }
         // Put inactivated locals on there too.
         for (var i = 0; i < pTrans.inactives.length; i++) {
-          var inactive = pTrans.inactives[i];
-          for (name in inactive.locals) {
-            if (inactive.locals.hasOwnProperty(name)) {
-              var inactiveLocal = inactive.locals[name];
+          var inLocals = pTrans.inactives[i].locals;
+          for (name in inLocals) {
+            if (inLocals.hasOwnProperty(name)) {
+              var inactiveLocal = inLocals[name];
               // Add all inactive views not already included.
               if (name.indexOf("@") != -1 && !locals[name]) {
                 inactiveLocals[name] = inactiveLocal;

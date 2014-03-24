@@ -74,7 +74,7 @@ function $ParallelStateProvider($injector) {
       var     fromPath = transition.fromState.path,
               fromParams = transition.fromParams,
               toPath = transition.toState.path,
-              toParams = transition.toParams
+              toParams = transition.toParams;
       // Inactive states, before the transition is processed, mapped to the parent parallel state.
       var inactivesByParent = this.getInactiveStatesByParent();
 
