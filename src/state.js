@@ -808,9 +808,13 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
 
       var inactiveLocals = root.inactiveLocals;
       if (!options.reload) {
-        // Rebuild root.inactiveLocals each time...
-        for (var name in inactiveLocals) { delete inactiveLocals[name]; }
-        // Put inactivated locals on there too.
+        while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
+          locals = toLocals[keep] = state.locals;
+          keep++;
+          state = toPath[keep];
+        }
+
+        for (var name in inactiveLocals) { delete inactiveLocals[name]; } // Rebuild root.inactiveLocals each time...
         for (var i = 0; i < parTrans.inactives.length; i++) {
           var iLocals = parTrans.inactives[i].locals;
           for (name in iLocals) {
@@ -818,12 +822,6 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
               inactiveLocals[name] = iLocals[name]; // Add all inactive views not already included.
             }
           }
-        }
-
-        while (state && state === fromPath[keep] && equalForKeys(toParams, fromParams, state.ownParams)) {
-          locals = toLocals[keep] = state.locals;
-          keep++;
-          state = toPath[keep];
         }
       }
 
