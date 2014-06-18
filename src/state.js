@@ -195,7 +195,7 @@ function $StateProvider(   $urlRouterProvider,   $urlMatcherFactory,           $
       if (isFunction(stateBuilder[key])) state[key] = stateBuilder[key](state, stateBuilder.$delegates[key]);
     }
     states[name] = state;
-    if (state.parallel) $parallelStateProvider.registerParallelState(state);
+    // if (state.parallel) $parallelStateProvider.registerParallelState(state);
 
     // Register the state in the global state list and with $urlRouter if necessary.
     if (!state[abstractKey] && state.url) {

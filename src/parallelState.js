@@ -139,8 +139,10 @@ function $ParallelStateProvider() {
           var parParents = this.getParallelStateStack(state);
           for (var i = 0; i < parParents.length; i++) {
             var parent = parParents[i].parent;
-            mappedStates[parent.name] = mappedStates[parent.name] || [];
-            mappedStates[parent.name].push(state);
+            if(parent) {
+              mappedStates[parent.name] = mappedStates[parent.name] || [];
+              mappedStates[parent.name].push(state);
+            }
           }
         }
         return mappedStates;
@@ -152,7 +154,7 @@ function $ParallelStateProvider() {
         if (fromPath[keep] === toPath[keep]) return { from: false, to: false };
         var parallelFromState = keep < fromPath.length && fromPath[keep].self.parallel;
         var parallelToState = keep < toPath.length && toPath[keep].self.parallel;
-        return { from: parallelFromState, to: parallelToState };
+        return { to: parallelFromState, from: parallelToState };
       },
 
       // Given a state, returns all ancestor states which are parallel.
@@ -162,7 +164,7 @@ function $ParallelStateProvider() {
         var stack = [];
         if (!state) return stack;
         do {
-          if (state.parallel) stack.push(state);
+          //if (state.parallel) stack.push(state);
           state = state.parent;
         } while (state);
         stack.reverse();
